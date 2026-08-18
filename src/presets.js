@@ -22,7 +22,7 @@ function effectStartOptions(profile, programId, extra = {}) {
   const programs = supportedPrograms(profile)
   if (programs.some((p) => p.touches === 'rgb')) options.dimmerPercent = 100
   if (programs.some((p) => p.touches === 'dimmer')) {
-    options.color = 0xffffff
+    if (hasRgb(profile)) options.color = 0xffffff // nothing for "Color while running" to set otherwise
     options.dimmerMin = 0
     options.dimmerMax = 100
   }
@@ -38,7 +38,7 @@ function stateOptions(profile) {
 
   if (hasRgb(profile)) options.color = 0x000000
   if (cctChannel) {
-    options.cctEnabled = false
+    if (cctChannel.overridesRgb) options.cctEnabled = false
     options.cctKelvin = cctChannel.kelvinMin
   }
   if (strobeChannel) {
@@ -118,12 +118,13 @@ function buildFixturePresets(profile, actionId, extraOptions, fixtureName, idPre
   }
 
   if (cctChannel) {
+    const cctOn = cctChannel.overridesRgb ? { cctEnabled: true } : {}
     presets[`${idPrefix}_warm_white_3000k`] = buttonPreset(
       'Warm White 3000K',
       `${fixtureName}\\nWARM 3000K`,
       0x552200,
       actionId,
-      withBase(full({ cctEnabled: true, cctKelvin: 3000 })),
+      withBase(full({ ...cctOn, cctKelvin: 3000 })),
       category,
     )
     presets[`${idPrefix}_cool_white_5600k`] = buttonPreset(
@@ -131,7 +132,7 @@ function buildFixturePresets(profile, actionId, extraOptions, fixtureName, idPre
       `${fixtureName}\\nCOOL 5600K`,
       0x224488,
       actionId,
-      withBase(full({ cctEnabled: true, cctKelvin: 5600 })),
+      withBase(full({ ...cctOn, cctKelvin: 5600 })),
       category,
     )
   }
@@ -282,7 +283,7 @@ function buildProfilePresets(instance, profile) {
     const type = instance.config?.[`fixture${i}Type`]
     if (type && type !== profile.id) continue
     patchedIndices.push(i)
-    const name = instance.config?.[`fixture${i}Name`] || `Fixture ${i}`
+    const name = instance.config?.[`fixture${i}Name`] || `Unedited Fixture ${i}`
     const category = `${profile.name} — ${name}`
     const idPrefix = `${profile.id}_f${i}`
     presets = {

@@ -31,7 +31,13 @@ function fixturePatchFields(registry, index, defaultStart) {
       type: 'textinput',
       label: 'Name',
       width: 4,
-      default: `Helios ${index}`,
+      // generic on purpose — matches the same fallback actions.js/presets.js use when
+      // this field is left blank, and doesn't assume any particular brand (this used
+      // to default to "Helios N", a leftover from when Astera Helios was the only
+      // fixture type; now that there are others, that default was actively wrong for
+      // anything else you patched). "Unedited" makes it obvious at a glance, in the
+      // action/preset names themselves, that you haven't named this one yet.
+      default: `Unedited Fixture ${index}`,
       isVisibleExpression,
     },
     {

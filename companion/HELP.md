@@ -81,19 +81,28 @@ One always-available fallback, independent of any profile:
 - **Raw — Set DMX Channel**: raw Universe/Channel/Value, for anything not covered by a
   profile at all.
 
-Two Astera Helios profiles are built in:
+Four fixture profiles are built in, and you can freely mix them in the same patch list
+— pick the profile per fixture in the Fixture Patch List's **Fixture Type** dropdown,
+each fixture only gets actions/presets under its own profile:
 
-- **Profile 7** (mode "RGB CCT DIM IND", 6 channels, strobe off).
-- **Profile 14** (mode "RGB CCT DIM IND S", 7 channels) — identical to Profile 7 plus a
-  **Strobe** field: Off / Random Fast / Random Medium / Random Slow / Variable Rate
-  (0.4-25 Hz, only shown when "Variable Rate" is selected). The chart only gives the two
-  endpoints for the variable range (raw 7 = 0.4Hz, raw 255 = 25Hz) with no formula, so
-  the Hz value uses a straight-line interpolation between them — close, but treat it as
-  an approximation rather than an exact match to the fixture's internal curve.
+- **Astera Helios Profile 7** (mode "RGB CCT DIM IND", 6 channels, strobe off).
+- **Astera Helios Profile 14** (mode "RGB CCT DIM IND S", 7 channels) — identical to
+  Profile 7 plus a **Strobe** field: Off / Random Fast / Random Medium / Random Slow /
+  Variable Rate (0.4-25 Hz, only shown when "Variable Rate" is selected). The chart only
+  gives the two endpoints for the variable range (raw 7 = 0.4Hz, raw 255 = 25Hz) with no
+  formula, so the Hz value uses a straight-line interpolation between them — close, but
+  treat it as an approximation rather than an exact match to the fixture's internal curve.
+- **Lupo Dayled — CCT** (2 channels, 8-bit: ch1 Dimmer, ch2 Color Temperature). No RGB —
+  CCT is this fixture's only color control, so unlike the Astera profiles it's always
+  directly applied (no "enable" checkbox, no falling back to a color it doesn't have).
+  Kelvin runs 2700K (raw 255, warmest) to 6500K (raw 0, coolest) — inverted from the
+  Astera profiles, per the fixture's own chart.
+- **Generic Dimmer** (1 channel: Dimmer only) — for anything whose only DMX control is a
+  single intensity channel (a dimmer pack, a simple LED fixture, etc).
 
-Pick the profile per fixture in the Fixture Patch List's **Fixture Type** dropdown —
-mixing Profile 7 and Profile 14 fixtures in the same patch list works fine, each
-fixture only gets an action under its own profile.
+Any fixture with a Dimmer channel gets Sine Breathing and Hard On/Off Blink effects
+(and Chase) automatically, even without RGB — Rainbow only shows up as an option for
+fixtures that actually have RGB, like the Astera profiles.
 
 Note: "Set Full State" (fixture or Manual) always sets every channel of the fixture in
 one go — there's currently no action that touches only some channels (e.g. flash the
@@ -201,7 +210,7 @@ to drive something outside this module's own Follow BPM checkbox.
 ## Presets
 
 Once fixtures are patched, the presets panel gets one category per fixture (e.g.
-"Astera Helios Profile 7 — Tube 3") with ready-made buttons: Full Red/Green/Blue, Warm
+"Astera Helios 7 — Tube 3") with ready-made buttons: Full Red/Green/Blue, Warm
 White 3000K, Cool White 5600K, Dimmer 100%, Blackout, plus the effect presets described
 above — already pointed at that fixture, no editing needed. Drag, drop, done.
 
@@ -220,7 +229,22 @@ always need a patched fixture, or a group of them, to target).
 
 ## Adding a new fixture profile
 
-Copy `src/fixtures/astera-helios-profile7.js`, describe your fixture's channels (see
-the JSDoc comment at the top of that file for the shape), and add it to the array in
-`src/fixtures/registry.js`. Actions and presets are generated automatically from that
-data — no other code changes needed.
+Copy whichever existing profile is closest to what you need, describe your fixture's
+channels, and add it to the array in `src/fixtures/registry.js`. Actions and presets
+are generated automatically from that data — no other code changes needed.
+
+- `src/fixtures/generic-dimmer.js` — a single channel. Simplest template.
+- `src/fixtures/lupo-dayled-cct.js` — Dimmer + CCT, no RGB. Use this if your fixture's
+  only color control is Kelvin (set the channel's `overridesRgb: false`).
+- `src/fixtures/astera-helios-profile7.js` — RGB + CCT (as an opt-in override, i.e.
+  `overridesRgb: true`) + Dimmer + Index Color.
+- `src/fixtures/astera-helios-profile14.js` — the above, plus Strobe.
+
+Supported channel `type`s: `value8` (plain 0-255), `percent8` (0-255 shown as 0-100%),
+`kelvin` (CCT — needs `kelvinToRaw`/`rawToKelvin`, `kelvinMin`/`kelvinMax`, and
+`overridesRgb`), and `strobe` (needs the raw codes for its named modes plus the
+variable-rate Hz conversion — see the Astera profiles for the shape). A fixture needs
+channels keyed `red`/`green`/`blue` (all three) to get RGB/Rainbow support, and a
+channel keyed `dimmer` to get Sine Breathing/Hard Blink/Chase support — everything else
+in `src/actions.js`/`src/presets.js` reacts to whichever of these channels are present,
+so a new fixture doesn't need any changes there.

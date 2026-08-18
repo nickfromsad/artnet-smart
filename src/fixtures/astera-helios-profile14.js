@@ -17,7 +17,7 @@ import { rgbChannels, cctChannel, dimmerChannel, indexColorChannel, strobeChanne
 export const asteraHeliosProfile14 = {
   id: 'astera-helios-profile14',
   manufacturer: 'Astera',
-  name: 'Astera Helios — Profile 14 (RGB CCT DIM IND S)',
+  name: 'Astera Helios 14', // kept short on purpose — see astera-helios-profile7.js
   footprint: 7,
   channels: [...rgbChannels(0), cctChannel(3), dimmerChannel(4), indexColorChannel(5), strobeChannel(6)],
 }

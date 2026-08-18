@@ -60,6 +60,9 @@ export function cctChannel(offset) {
     label: 'Color Temperature (CCT)',
     offset,
     type: 'kelvin',
+    // this fixture's firmware treats a non-zero CCT as overriding RGB, so the module
+    // exposes it as an opt-in checkbox (off = let RGB show) rather than always-applied
+    overridesRgb: true,
     offRaw: 0,
     rawMin: 4,
     rawMax: 255,

@@ -10,6 +10,12 @@ import {
 } from '../src/fixtures/astera-helios-profile7.js'
 import { asteraHeliosProfile14 } from '../src/fixtures/astera-helios-profile14.js'
 import { strobeRawToHz, strobeHzToRaw } from '../src/fixtures/astera-helios-channels.js'
+import {
+  lupoDayledCct,
+  cctRawToKelvin as lupoCctRawToKelvin,
+  cctKelvinToRaw as lupoCctKelvinToRaw,
+} from '../src/fixtures/lupo-dayled-cct.js'
+import { genericDimmer } from '../src/fixtures/generic-dimmer.js'
 
 test('CCT raw->Kelvin matches the documented examples', () => {
   assert.equal(cctRawToKelvin(50), 3000)
@@ -83,4 +89,45 @@ test('Strobe Hz->raw clamps to the variable-rate range and round-trips', () => {
   const raw = strobeHzToRaw(12.7)
   assert.ok(raw >= 7 && raw <= 255)
   assert.ok(Math.abs(strobeRawToHz(raw) - 12.7) < 0.2)
+})
+
+test('Lupo Dayled CCT channel layout: Dimmer then CCT, no RGB, CCT does not override anything', () => {
+  assert.equal(lupoDayledCct.footprint, 2)
+  const byKey = Object.fromEntries(lupoDayledCct.channels.map((c) => [c.key, c]))
+  assert.equal(byKey.dimmer.offset, 0)
+  assert.equal(byKey.dimmer.type, 'percent8')
+  assert.equal(byKey.cct.offset, 1)
+  assert.equal(byKey.cct.type, 'kelvin')
+  assert.equal(byKey.cct.overridesRgb, false)
+  assert.ok(!byKey.red && !byKey.green && !byKey.blue, 'Lupo Dayled CCT mode has no RGB channels')
+})
+
+test('Lupo CCT raw<->Kelvin matches the chart exactly (0=6500K coolest, 255=2700K warmest, inverted from Astera)', () => {
+  assert.equal(lupoCctRawToKelvin(0), 6500)
+  assert.equal(lupoCctRawToKelvin(255), 2700)
+  assert.equal(lupoCctRawToKelvin(128), 6500 - (128 / 255) * 3800) // linear midpoint
+
+  assert.equal(lupoCctKelvinToRaw(6500), 0)
+  assert.equal(lupoCctKelvinToRaw(2700), 255)
+
+  assert.equal(lupoDayledCct.channels.find((c) => c.key === 'cct').kelvinMin, 2700)
+  assert.equal(lupoDayledCct.channels.find((c) => c.key === 'cct').kelvinMax, 6500)
+})
+
+test('Lupo CCT Kelvin->raw clamps to the fixture range and round-trips', () => {
+  assert.equal(lupoCctKelvinToRaw(10000), 0, 'above range clamps to the coolest raw value')
+  assert.equal(lupoCctKelvinToRaw(1000), 255, 'below range clamps to the warmest raw value')
+  const raw = lupoCctKelvinToRaw(4000)
+  assert.ok(raw >= 0 && raw <= 255)
+  assert.ok(Math.abs(lupoCctRawToKelvin(raw) - 4000) < 15) // rounding tolerance
+})
+
+test('Generic Dimmer is a single Dimmer channel and nothing else', () => {
+  assert.equal(genericDimmer.footprint, 1)
+  assert.deepEqual(
+    genericDimmer.channels.map((c) => c.key),
+    ['dimmer'],
+  )
+  assert.equal(genericDimmer.channels[0].offset, 0)
+  assert.equal(genericDimmer.channels[0].type, 'percent8')
 })

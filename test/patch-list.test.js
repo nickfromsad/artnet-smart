@@ -43,6 +43,20 @@ function defaultStartOf(fields, i) {
   return fields.find((f) => f.id === `fixture${i}Start`).default
 }
 
+test('regression: a new fixture\'s default Name is generic and obviously a placeholder ("Unedited Fixture N"), not hardcoded to a specific brand ("Helios N")', () => {
+  // The Name field used to default to "Helios N" — a leftover from when Astera Helios
+  // was the only fixture type. Now that Lupo/Generic Dimmer/etc exist too, that default
+  // was actively wrong (and confusingly showed up in every action/preset label) for
+  // anything you patched that wasn't a Helios. "Unedited" also makes it obvious at a
+  // glance, right in the action/preset names, that this fixture hasn't been named yet.
+  const fields = getConfigFields(fixtureRegistry)
+  const name1 = fields.find((f) => f.id === 'fixture1Name').default
+  const name2 = fields.find((f) => f.id === 'fixture2Name').default
+  assert.equal(name1, 'Unedited Fixture 1')
+  assert.equal(name2, 'Unedited Fixture 2')
+  assert.ok(!name1.includes('Helios'))
+})
+
 test('a brand new fixture defaults to starting right after the previous one, using its real footprint (regression: used to always add 6, ignoring the actual profile/footprint)', () => {
   const noSavedConfig = getConfigFields(fixtureRegistry, {})
   assert.equal(defaultStartOf(noSavedConfig, 1), 1)

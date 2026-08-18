@@ -275,3 +275,93 @@ test('Start Chase passes followBpm/beatsPerCycle through to the engine, defaulti
   assert.equal(start.opts.followBpm, true)
   assert.equal(start.opts.beatsPerCycle, 1)
 })
+
+function fakeInstanceWithMixedFixtures() {
+  const config = {
+    fixtureCount: 2,
+    fixture1Name: 'Lupo 1',
+    fixture1Type: 'lupo-dayled-cct',
+    fixture1Universe: 0,
+    fixture1Start: 1,
+    fixture2Name: 'Dimmer Pack 1',
+    fixture2Type: 'generic-dimmer',
+    fixture2Universe: 0,
+    fixture2Start: 3,
+  }
+  const sent = []
+  const effectCalls = []
+  return {
+    instance: {
+      config,
+      log: () => {},
+      sender: { setChannels: (universe, startChannel, values) => sent.push({ universe, startChannel, values: [...values] }) },
+      effects: {
+        start: (id, opts) => effectCalls.push({ type: 'start', id, opts }),
+        stop: (id) => effectCalls.push({ type: 'stop', id }),
+        stopAll: () => effectCalls.push({ type: 'stopAll' }),
+      },
+    },
+    sent,
+    effectCalls,
+  }
+}
+
+test('Lupo Dayled (no RGB, CCT overridesRgb=false): Set Full State has no cctEnabled checkbox and Kelvin always applies', async () => {
+  const { instance, sent } = fakeInstanceWithMixedFixtures()
+  const action = buildActionDefinitions(instance, fixtureRegistry)['lupo-dayled-cct_f1_set_state']
+
+  assert.ok(!action.options.some((o) => o.id === 'cctEnabled'), 'Lupo has nothing for cctEnabled to toggle between')
+  assert.ok(!action.options.some((o) => o.id === 'color'), 'Lupo has no RGB channels')
+
+  await action.callback({ options: { dimmerPercent: 100, cctKelvin: 2700 } })
+  assert.equal(sent[0].values[0], 255) // dimmer 100%
+  assert.equal(sent[0].values[1], 255) // 2700K = warmest = raw 255
+})
+
+test('Lupo Dayled Start Effect has no "Color while running" field (nothing for it to set)', () => {
+  const { instance } = fakeInstanceWithMixedFixtures()
+  const action = buildActionDefinitions(instance, fixtureRegistry)['lupo-dayled-cct_f1_start_effect']
+
+  assert.ok(!action.options.some((o) => o.id === 'color'))
+  assert.ok(action.options.some((o) => o.id === 'dimmerMin'))
+  assert.ok(action.options.some((o) => o.id === 'dimmerMax'))
+  // Rainbow requires RGB, which Lupo doesn't have
+  const programField = action.options.find((o) => o.id === 'program')
+  assert.ok(!programField.choices.some((c) => c.id === 'rainbow'))
+})
+
+test('Generic Dimmer: Set Full State is just a Dimmer % field, and effects work (Breathing/Blink, no Rainbow)', async () => {
+  const { instance, sent } = fakeInstanceWithMixedFixtures()
+  const stateAction = buildActionDefinitions(instance, fixtureRegistry)['generic-dimmer_f2_set_state']
+
+  assert.deepEqual(
+    stateAction.options.map((o) => o.id),
+    ['dimmerPercent'],
+  )
+
+  await stateAction.callback({ options: { dimmerPercent: 50 } })
+  assert.equal(sent[0].universe, 0)
+  assert.equal(sent[0].startChannel, 3)
+  assert.equal(sent[0].values[0], 128)
+
+  const effectAction = buildActionDefinitions(instance, fixtureRegistry)['generic-dimmer_f2_start_effect']
+  const programField = effectAction.options.find((o) => o.id === 'program')
+  assert.deepEqual(
+    programField.choices.map((c) => c.id).sort(),
+    ['sineDimmer', 'squareDimmer'],
+  )
+})
+
+test('regression: switching a Lupo fixture from Sine Breathing to Set Full State stops the running effect (same fix as RGB fixtures)', async () => {
+  const { instance, effectCalls } = fakeInstanceWithMixedFixtures()
+  const actions = buildActionDefinitions(instance, fixtureRegistry)
+
+  await actions['lupo-dayled-cct_f1_start_effect'].callback({
+    options: { program: 'sineDimmer', periodSeconds: 4, dimmerMin: 0, dimmerMax: 100 },
+  })
+  effectCalls.length = 0
+
+  await actions['lupo-dayled-cct_f1_set_state'].callback({ options: { dimmerPercent: 100, cctKelvin: 3000 } })
+  const stoppedIds = effectCalls.filter((c) => c.type === 'stop').map((c) => c.id)
+  assert.ok(stoppedIds.includes('lupo-dayled-cct_f1_sineDimmer'))
+})

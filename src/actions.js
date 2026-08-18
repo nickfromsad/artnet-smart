@@ -86,12 +86,14 @@ function stateFields(profile) {
   }
 
   if (cctChannel) {
-    fields.push({
-      id: 'cctEnabled',
-      type: 'checkbox',
-      label: `Set ${cctChannel.label} (overrides RGB on the fixture)`,
-      default: false,
-    })
+    if (cctChannel.overridesRgb) {
+      fields.push({
+        id: 'cctEnabled',
+        type: 'checkbox',
+        label: `Set ${cctChannel.label} (overrides RGB on the fixture)`,
+        default: false,
+      })
+    }
     fields.push({
       id: 'cctKelvin',
       type: 'number',
@@ -100,7 +102,9 @@ function stateFields(profile) {
       max: cctChannel.kelvinMax,
       default: cctChannel.kelvinMin,
       step: 10,
-      isVisibleExpression: '$(options:cctEnabled)',
+      // fixtures where CCT overrides RGB expose it as opt-in (hidden until the
+      // checkbox is on); fixtures with no RGB to override just always apply it
+      ...(cctChannel.overridesRgb ? { isVisibleExpression: '$(options:cctEnabled)' } : {}),
     })
   }
 
@@ -151,7 +155,11 @@ function stateOverrides(profile, options) {
   }
 
   if (cctChannel) {
-    const value = options.cctEnabled ? cctChannel.kelvinToRaw(Number(options.cctKelvin)) : cctChannel.offRaw
+    const value = cctChannel.overridesRgb
+      ? options.cctEnabled
+        ? cctChannel.kelvinToRaw(Number(options.cctKelvin))
+        : cctChannel.offRaw
+      : cctChannel.kelvinToRaw(Number(options.cctKelvin))
     overrides.push({ offset: cctChannel.offset, value })
   }
 
@@ -334,14 +342,19 @@ function effectStartFields(profile, { includePhaseSpread }) {
 
   if (dimmerPrograms.length > 0) {
     const dimmerVisible = anyProgramExpression(dimmerPrograms)
-    fields.push({
-      id: 'color',
-      type: 'colorpicker',
-      label: 'Color while running',
-      default: 0xffffff,
-      returnType: 'number',
-      isVisibleExpression: dimmerVisible,
-    })
+    // only meaningful on fixtures that actually have RGB — a Dimmer-only fixture (or
+    // one whose only color control is CCT, like the Lupo Dayled) has nothing for this
+    // field to set
+    if (hasRgb(profile)) {
+      fields.push({
+        id: 'color',
+        type: 'colorpicker',
+        label: 'Color while running',
+        default: 0xffffff,
+        returnType: 'number',
+        isVisibleExpression: dimmerVisible,
+      })
+    }
     fields.push({
       id: 'dimmerMin',
       type: 'number',
@@ -392,14 +405,16 @@ function effectOneShotOverrides(profile, options) {
 
   const overrides = []
 
-  // On the Astera profiles, a non-zero CCT value overrides RGB at the fixture's own
-  // firmware level, regardless of what we send afterward. Every effect here relies on
-  // RGB being visible (continuously for Rainbow, or via the one-shot Color baseline for
-  // the Dimmer-only programs) — so if a previous "Set Full State" left CCT enabled, the
-  // fixture would keep showing that white balance instead of the effect. Reset it every
-  // time an effect starts.
+  // On fixtures where CCT overrides RGB at the firmware level (e.g. Astera), a
+  // leftover non-zero CCT from a previous "Set Full State" would keep showing that
+  // white balance instead of the effect — every effect here relies on RGB being
+  // visible (continuously for Rainbow, or via the one-shot Color baseline for the
+  // Dimmer-only programs). Reset CCT every time an effect starts, but only on fixtures
+  // where that's actually meaningful — a fixture like the Lupo Dayled has no RGB to
+  // reveal, so resetting its CCT would just needlessly change its color temperature
+  // every time an unrelated Dimmer effect starts.
   const cctChannel = profile.channels.find((c) => c.type === 'kelvin')
-  if (cctChannel) {
+  if (cctChannel && cctChannel.overridesRgb) {
     overrides.push({ offset: cctChannel.offset, value: cctChannel.offRaw })
   }
 
@@ -607,7 +622,7 @@ export function buildActionDefinitions(instance, registry) {
     const hasEffects = supportedPrograms(profile).length > 0
 
     for (const i of patchedIndices) {
-      const name = instance.config?.[`fixture${i}Name`] || `Fixture ${i}`
+      const name = instance.config?.[`fixture${i}Name`] || `Unedited Fixture ${i}`
       actions[`${profile.id}_f${i}_set_state`] = buildFixtureStateAction(instance, profile, i, name)
 
       if (hasEffects) {
