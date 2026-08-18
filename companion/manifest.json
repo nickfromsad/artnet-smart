@@ -8,8 +8,8 @@
   "keywords": ["artnet", "art-net", "dmx", "lighting", "astera", "helios"],
   "version": "0.1.0",
   "license": "MIT",
-  "repository": "git+https://github.com/nickvantriest/artnet-smart.git",
-  "bugs": "https://github.com/nickvantriest/artnet-smart/issues",
+  "repository": "git+https://github.com/nickfromsad/artnet-smart.git",
+  "bugs": "https://github.com/nickfromsad/artnet-smart/issues",
   "maintainers": [
     {
       "name": "nickvantriest",
