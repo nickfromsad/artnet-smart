@@ -1,0 +1,14 @@
+{
+  "name": "artnet-smart",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Companion module that sends Art-Net DMX directly, with built-in fixture profiles (Astera Helios Profile 7, etc.) so you get meaningful controls and presets instead of raw channel/value pairs.",
+  "main": "main.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@companion-module/base": "^1.14.1"
+  }
+}
