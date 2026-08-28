@@ -81,7 +81,7 @@ One always-available fallback, independent of any profile:
 - **Raw — Set DMX Channel**: raw Universe/Channel/Value, for anything not covered by a
   profile at all.
 
-Four fixture profiles are built in, and you can freely mix them in the same patch list
+Five fixture profiles are built in, and you can freely mix them in the same patch list
 — pick the profile per fixture in the Fixture Patch List's **Fixture Type** dropdown,
 each fixture only gets actions/presets under its own profile:
 
@@ -92,6 +92,13 @@ each fixture only gets actions/presets under its own profile:
   gives the two endpoints for the variable range (raw 7 = 0.4Hz, raw 255 = 25Hz) with no
   formula, so the Hz value uses a straight-line interpolation between them — close, but
   treat it as an approximation rather than an exact match to the fixture's internal curve.
+- **Astera Helios Profile 80** (mode "RGB CCT DIM IND S", PIXEL=4, 25 channels) — the
+  fixture's 4 individually-addressable pixels, each repeating Profile 7's Color/CCT/
+  Dimmer/Index Color block, plus one Strobe channel shared by all 4. "Set Full State"
+  still shows just one Color/CCT/Dimmer/Index Color/Strobe field, same as Profile 7/14 —
+  every value fans out to all 4 pixels together, so the fixture behaves as one unit
+  rather than needing 4 near-identical blocks of fields. Rainbow/Sine Breathing/Hard
+  Blink effects (and Chase) animate all 4 pixels in sync the same way.
 - **Lupo Dayled — CCT** (2 channels, 8-bit: ch1 Dimmer, ch2 Color Temperature). No RGB —
   CCT is this fixture's only color control, so unlike the Astera profiles it's always
   directly applied (no "enable" checkbox, no falling back to a color it doesn't have).
@@ -239,6 +246,11 @@ are generated automatically from that data — no other code changes needed.
 - `src/fixtures/astera-helios-profile7.js` — RGB + CCT (as an opt-in override, i.e.
   `overridesRgb: true`) + Dimmer + Index Color.
 - `src/fixtures/astera-helios-profile14.js` — the above, plus Strobe.
+- `src/fixtures/astera-helios-profile80.js` — a *multi-pixel* fixture: the same
+  Profile 7 block repeated once per pixel (same channel `key`s each time, different
+  offsets), plus one Strobe channel shared by all pixels. Use this template if your
+  fixture has independently-addressable pixels/segments that should still behave as one
+  unit from Companion's side.
 
 Supported channel `type`s: `value8` (plain 0-255), `percent8` (0-255 shown as 0-100%),
 `kelvin` (CCT — needs `kelvinToRaw`/`rawToKelvin`, `kelvinMin`/`kelvinMax`, and
@@ -248,3 +260,11 @@ channels keyed `red`/`green`/`blue` (all three) to get RGB/Rainbow support, and 
 channel keyed `dimmer` to get Sine Breathing/Hard Blink/Chase support — everything else
 in `src/actions.js`/`src/presets.js` reacts to whichever of these channels are present,
 so a new fixture doesn't need any changes there.
+
+**Multi-pixel fixtures**: if the same logical channel (Red, CCT, Dimmer, Index Color,
+...) repeats once per pixel, give each repeat the *same* `key` — one Companion field is
+generated for that key and its value fans out to every channel sharing it (see
+`rgbGroups`/`findChannels`/`groupedOtherChannels` in `src/fixtures/state.js`, and
+`astera-helios-profile80.js` for a worked example). A channel that's genuinely shared
+across pixels (like a single Strobe controlling the whole fixture) just needs one entry
+with a unique key, same as any single-pixel profile.

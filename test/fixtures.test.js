@@ -9,6 +9,7 @@ import {
   CCT_KELVIN_MAX,
 } from '../src/fixtures/astera-helios-profile7.js'
 import { asteraHeliosProfile14 } from '../src/fixtures/astera-helios-profile14.js'
+import { asteraHeliosProfile80 } from '../src/fixtures/astera-helios-profile80.js'
 import { strobeRawToHz, strobeHzToRaw } from '../src/fixtures/astera-helios-channels.js'
 import {
   lupoDayledCct,
@@ -89,6 +90,22 @@ test('Strobe Hz->raw clamps to the variable-rate range and round-trips', () => {
   const raw = strobeHzToRaw(12.7)
   assert.ok(raw >= 7 && raw <= 255)
   assert.ok(Math.abs(strobeRawToHz(raw) - 12.7) < 0.2)
+})
+
+test('Astera Helios Profile 80 (4 pixels): each pixel repeats the Profile 7 channel block, plus one shared Strobe channel', () => {
+  assert.equal(asteraHeliosProfile80.footprint, 25)
+
+  const offsetsOf = (key) => asteraHeliosProfile80.channels.filter((c) => c.key === key).map((c) => c.offset)
+  assert.deepEqual(offsetsOf('red'), [0, 6, 12, 18])
+  assert.deepEqual(offsetsOf('green'), [1, 7, 13, 19])
+  assert.deepEqual(offsetsOf('blue'), [2, 8, 14, 20])
+  assert.deepEqual(offsetsOf('cct'), [3, 9, 15, 21])
+  assert.deepEqual(offsetsOf('dimmer'), [4, 10, 16, 22])
+  assert.deepEqual(offsetsOf('indexColor'), [5, 11, 17, 23])
+
+  const strobes = asteraHeliosProfile80.channels.filter((c) => c.key === 'strobe')
+  assert.equal(strobes.length, 1, 'Strobe is shared by all 4 pixels, not one channel per pixel')
+  assert.equal(strobes[0].offset, 24)
 })
 
 test('Lupo Dayled CCT channel layout: Dimmer then CCT, no RGB, CCT does not override anything', () => {

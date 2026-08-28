@@ -5,7 +5,7 @@
  * src/actions.js exposes them as Start/Stop actions.
  */
 
-import { findChannel, hasRgb } from '../fixtures/state.js'
+import { findChannels, hasRgb, rgbGroups } from '../fixtures/state.js'
 
 /** h in [0, 360), s and v in [0, 1] -> {r, g, b} each 0-255 */
 export function hsvToRgb(h, s, v) {
@@ -42,32 +42,34 @@ export const EFFECT_PROGRAMS = {
     supports: (profile) => hasRgb(profile),
     tick: (profile, phase) => {
       const { r, g, b } = hsvToRgb(phase * 360, 1, 1)
-      return [
-        { offset: findChannel(profile, 'red').offset, value: r },
-        { offset: findChannel(profile, 'green').offset, value: g },
-        { offset: findChannel(profile, 'blue').offset, value: b },
-      ]
+      const overrides = []
+      for (const group of rgbGroups(profile)) {
+        overrides.push({ offset: group.red.offset, value: r })
+        overrides.push({ offset: group.green.offset, value: g })
+        overrides.push({ offset: group.blue.offset, value: b })
+      }
+      return overrides
     },
   },
   sineDimmer: {
     id: 'sineDimmer',
     label: 'Sine Breathing Dimmer',
     touches: 'dimmer',
-    supports: (profile) => !!findChannel(profile, 'dimmer'),
+    supports: (profile) => findChannels(profile, 'dimmer').length > 0,
     tick: (profile, phase, params = {}) => {
       const min = clampPercent(params.min ?? 0)
       const max = clampPercent(params.max ?? 100)
       // starts at min (phase 0), peaks at max (phase 0.5), back to min (phase 1) — a smooth breath
       const percent = min + (max - min) * (0.5 - 0.5 * Math.cos(phase * 2 * Math.PI))
       const raw = Math.round((percent * 255) / 100)
-      return [{ offset: findChannel(profile, 'dimmer').offset, value: raw }]
+      return findChannels(profile, 'dimmer').map((channel) => ({ offset: channel.offset, value: raw }))
     },
   },
   squareDimmer: {
     id: 'squareDimmer',
     label: 'Hard On/Off Blink',
     touches: 'dimmer',
-    supports: (profile) => !!findChannel(profile, 'dimmer'),
+    supports: (profile) => findChannels(profile, 'dimmer').length > 0,
     tick: (profile, phase, params = {}) => {
       const min = clampPercent(params.min ?? 0)
       const max = clampPercent(params.max ?? 100)
@@ -75,7 +77,7 @@ export const EFFECT_PROGRAMS = {
       // no fade — snaps straight from max to min, unlike sineDimmer's smooth curve
       const percent = phase < duty ? max : min
       const raw = Math.round((percent * 255) / 100)
-      return [{ offset: findChannel(profile, 'dimmer').offset, value: raw }]
+      return findChannels(profile, 'dimmer').map((channel) => ({ offset: channel.offset, value: raw }))
     },
   },
 }

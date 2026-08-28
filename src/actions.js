@@ -13,7 +13,7 @@
  */
 
 import { MAX_FIXTURES } from './config.js'
-import { findChannel, hasRgb, otherChannels, overridesToValues } from './fixtures/state.js'
+import { findChannels, hasRgb, rgbGroups, groupedOtherChannels, overridesToValues } from './fixtures/state.js'
 import { EFFECT_PROGRAMS } from './effects/programs.js'
 
 const STROBE_MODE_CHOICES = [
@@ -113,7 +113,8 @@ function stateFields(profile) {
     fields.push(strobeHzField(strobeChannel))
   }
 
-  for (const channel of otherChannels(profile)) {
+  for (const group of groupedOtherChannels(profile)) {
+    const channel = group.channel
     if (channel.type === 'kelvin' || channel.type === 'strobe') continue
     if (channel.type === 'percent8') {
       fields.push({
@@ -149,9 +150,11 @@ function stateOverrides(profile, options) {
 
   if (hasRgb(profile)) {
     const { r, g, b } = decodeColor(Number(options.color))
-    overrides.push({ offset: findChannel(profile, 'red').offset, value: r })
-    overrides.push({ offset: findChannel(profile, 'green').offset, value: g })
-    overrides.push({ offset: findChannel(profile, 'blue').offset, value: b })
+    for (const group of rgbGroups(profile)) {
+      overrides.push({ offset: group.red.offset, value: r })
+      overrides.push({ offset: group.green.offset, value: g })
+      overrides.push({ offset: group.blue.offset, value: b })
+    }
   }
 
   if (cctChannel) {
@@ -160,20 +163,24 @@ function stateOverrides(profile, options) {
         ? cctChannel.kelvinToRaw(Number(options.cctKelvin))
         : cctChannel.offRaw
       : cctChannel.kelvinToRaw(Number(options.cctKelvin))
-    overrides.push({ offset: cctChannel.offset, value })
+    for (const channel of profile.channels.filter((c) => c.type === 'kelvin')) {
+      overrides.push({ offset: channel.offset, value })
+    }
   }
 
   if (strobeChannel) {
     overrides.push({ offset: strobeChannel.offset, value: strobeRawValue(strobeChannel, options) })
   }
 
-  for (const channel of otherChannels(profile)) {
+  for (const group of groupedOtherChannels(profile)) {
+    const channel = group.channel
     if (channel.type === 'kelvin' || channel.type === 'strobe') continue
-    if (channel.type === 'percent8') {
-      const percent = Number(options[`${channel.key}Percent`])
-      overrides.push({ offset: channel.offset, value: Math.round((percent * 255) / 100) })
-    } else {
-      overrides.push({ offset: channel.offset, value: Number(options[channel.key]) })
+    const value =
+      channel.type === 'percent8'
+        ? Math.round((Number(options[`${channel.key}Percent`]) * 255) / 100)
+        : Number(options[channel.key])
+    for (const c of group.channels) {
+      overrides.push({ offset: c.offset, value })
     }
   }
 
@@ -413,25 +420,32 @@ function effectOneShotOverrides(profile, options) {
   // where that's actually meaningful — a fixture like the Lupo Dayled has no RGB to
   // reveal, so resetting its CCT would just needlessly change its color temperature
   // every time an unrelated Dimmer effect starts.
-  const cctChannel = profile.channels.find((c) => c.type === 'kelvin')
-  if (cctChannel && cctChannel.overridesRgb) {
-    overrides.push({ offset: cctChannel.offset, value: cctChannel.offRaw })
+  const cctChannels = profile.channels.filter((c) => c.type === 'kelvin')
+  if (cctChannels.length > 0 && cctChannels[0].overridesRgb) {
+    for (const channel of cctChannels) {
+      overrides.push({ offset: channel.offset, value: channel.offRaw })
+    }
   }
 
   if (program.touches === 'rgb') {
-    const dimmerChannel = findChannel(profile, 'dimmer')
-    if (dimmerChannel) {
+    const dimmerChannels = findChannels(profile, 'dimmer')
+    if (dimmerChannels.length > 0) {
       const percent = Number(options.dimmerPercent)
-      overrides.push({ offset: dimmerChannel.offset, value: Math.round((percent * 255) / 100) })
+      const raw = Math.round((percent * 255) / 100)
+      for (const channel of dimmerChannels) {
+        overrides.push({ offset: channel.offset, value: raw })
+      }
     }
   }
 
   if (program.touches === 'dimmer') {
     if (hasRgb(profile)) {
       const { r, g, b } = decodeColor(Number(options.color))
-      overrides.push({ offset: findChannel(profile, 'red').offset, value: r })
-      overrides.push({ offset: findChannel(profile, 'green').offset, value: g })
-      overrides.push({ offset: findChannel(profile, 'blue').offset, value: b })
+      for (const group of rgbGroups(profile)) {
+        overrides.push({ offset: group.red.offset, value: r })
+        overrides.push({ offset: group.green.offset, value: g })
+        overrides.push({ offset: group.blue.offset, value: b })
+      }
     }
   }
 
