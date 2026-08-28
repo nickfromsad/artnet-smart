@@ -60,6 +60,23 @@ function pixelIndex(i, n, reverse) {
   return reverse ? n - 1 - i : i
 }
 
+/**
+ * squareDimmer's on/off fraction at phase p, with an optional smooth ramp at each edge
+ * instead of an instant snap. `duty` = fraction of the cycle at "on" (1), matching
+ * today's boundary exactly when fade=0. `fade` = fraction of the cycle each ramp
+ * takes, split one ramp after the falling edge and one before the cycle wraps back to
+ * "on" — both eat into what would otherwise be flat "off" time, so fade is clamped to
+ * never exceed half of it (the two ramps can't overlap).
+ */
+function squareWave(p, duty, fade) {
+  const f = Math.max(0, Math.min(fade, (1 - duty) / 2))
+  if (f <= 0) return p < duty ? 1 : 0
+  if (p < duty) return 1 // flat "on"
+  if (p < duty + f) return 1 - (p - duty) / f // falling ramp
+  if (p < 1 - f) return 0 // flat "off"
+  return (p - (1 - f)) / f // rising ramp, reaches 1 exactly at the wrap
+}
+
 export const EFFECT_PROGRAMS = {
   rainbow: {
     id: 'rainbow',
@@ -112,14 +129,14 @@ export const EFFECT_PROGRAMS = {
       const min = clampPercent(params.min ?? 0)
       const max = clampPercent(params.max ?? 100)
       const duty = clampPercent(params.dutyCycle ?? 50) / 100 // fraction of the cycle spent "on" (at max)
+      const fade = Math.max(0, params.fadeWidth ?? 0) / 100 // fraction of the cycle each edge ramps over; 0 = instant snap
       const spread = params.pixelPhaseSpread ?? 0
       const reverse = !!params.reversePixelOrder
       const channels = findChannels(profile, 'dimmer')
       return channels.map((channel, i) => {
         const idx = pixelIndex(i, channels.length, reverse)
         const p = pixelPhase(phase, idx, channels.length, spread)
-        // no fade — snaps straight from max to min, unlike sineDimmer's smooth curve
-        const percent = p < duty ? max : min
+        const percent = min + (max - min) * squareWave(p, duty, fade)
         return { offset: channel.offset, value: Math.round((percent * 255) / 100) }
       })
     },

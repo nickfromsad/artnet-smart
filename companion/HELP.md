@@ -133,8 +133,8 @@ Three effect types are built in:
 - **Sine Breathing Dimmer** — Dimmer smoothly pulses between a Min% and Max%, fading in
   and out. Only touches Dimmer; a **Color while running** field is sent once at start
   (it doesn't otherwise touch RGB).
-- **Hard On/Off Blink** — same idea as Sine Breathing, but no fade: Dimmer snaps
-  straight from Max to Min and back, like a classic chase-light blink instead of a
+- **Hard On/Off Blink** — same idea as Sine Breathing, but no fade by default: Dimmer
+  snaps straight from Max to Min and back, like a classic chase-light blink instead of a
   breath. Has an extra **On Time (%)** field (default 50%) controlling what fraction of
   each cycle it stays on before snapping off. Also only touches Dimmer, same one-shot
   **Color while running** field as Sine Breathing.
@@ -142,6 +142,15 @@ Three effect types are built in:
     Phase Spread at 1, On Time 70% means roughly 70% of the fixtures are lit and 30%
     dark at any given instant (not just 70% of each fixture's own time), since the
     per-fixture time offset and the spatial position are the same thing here.
+  - **Fade Width (%)** (default `0`, instant snap — the classic look, unchanged):
+    instead of snapping instantly between lit and dark, ramps smoothly over this
+    percentage of the cycle at each edge. `0` = hard edge exactly like before; higher
+    values widen the smoothly-dimmed transition zone between the lit and dark
+    sections, up to a fairly soft fade. As a Chase, this softens the boundary of the
+    "lit block" traveling down the line — some pixels partway through the ramp will
+    show a genuinely dimmed (not just on or off) value, instead of every pixel being
+    strictly one or the other. Automatically capped so the two edges' ramps can never
+    overlap, however wide you set it relative to On Time.
 
 Both are available per fixture and as a **Chase** across every patched fixture of a
 profile at once:
@@ -218,8 +227,8 @@ Presets exist for all of this (per fixture: Start Rainbow / Start Sine Breathing
 Start Hard Blink / Stop Effect; per profile, in a `<Profile> — Chase` category: Start
 Rainbow Chase / Start Breathing Chase / Start Random Breathing Chase / Start Hard Blink
 Chase / Start Random Blink Chase / Stop Chase) with sensible defaults (4 second cycle,
-full range, 50% on time) — drag one on, then tweak Speed/Phase Spread/Min-Max/On
-Time/Random Order to taste.
+full range, 50% on time, 0% fade width — hard edges, like before) — drag one on, then
+tweak Speed/Phase Spread/Min-Max/On Time/Fade Width/Random Order to taste.
 
 ### Tap Tempo
 

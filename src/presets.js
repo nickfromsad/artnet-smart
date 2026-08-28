@@ -26,7 +26,10 @@ function effectStartOptions(profile, programId, extra = {}) {
     options.dimmerMin = 0
     options.dimmerMax = 100
   }
-  if (programId === 'squareDimmer') options.dutyCycle = 50
+  if (programId === 'squareDimmer') {
+    options.dutyCycle = 50
+    options.fadeWidth = 0
+  }
   // matches the Pixel Phase Spread field's own default (actions.js) — ripples across
   // this fixture's own pixels out of the box, rather than pulsing them all in
   // lockstep. Chase presets (extra.phaseSpread set) don't get this: Chase derives its

@@ -430,6 +430,16 @@ function effectStartFields(profile, { includePhaseSpread }) {
       step: 1,
       isVisibleExpression: "$(options:program) == 'squareDimmer'",
     })
+    fields.push({
+      id: 'fadeWidth',
+      type: 'number',
+      label: 'Fade Width (% of the cycle each edge ramps over — 0 = instant snap, like before)',
+      min: 0,
+      max: 50,
+      default: 0,
+      step: 1,
+      isVisibleExpression: "$(options:program) == 'squareDimmer'",
+    })
   }
 
   return fields
@@ -497,7 +507,10 @@ function effectParams(profile, options) {
   if (program?.touches === 'dimmer') {
     params.min = Number(options.dimmerMin)
     params.max = Number(options.dimmerMax)
-    if (program.id === 'squareDimmer') params.dutyCycle = Number(options.dutyCycle ?? 50)
+    if (program.id === 'squareDimmer') {
+      params.dutyCycle = Number(options.dutyCycle ?? 50)
+      params.fadeWidth = Number(options.fadeWidth ?? 0)
+    }
   }
   return params
 }

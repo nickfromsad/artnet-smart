@@ -83,6 +83,43 @@ test('squareDimmer respects a custom duty cycle and a narrower min/max range', (
   assert.equal(off.value, Math.round((20 * 255) / 100))
 })
 
+test('squareDimmer Fade Width=0 is identical to no fade at all (regression: must not change the existing default look)', () => {
+  const at = (phase, params) => EFFECT_PROGRAMS.squareDimmer.tick(asteraHeliosProfile7, phase, params)[0].value
+  for (const phase of [0, 0.1, 0.49, 0.5, 0.51, 0.75, 0.99]) {
+    assert.equal(at(phase, { dutyCycle: 50, fadeWidth: 0 }), at(phase, { dutyCycle: 50 }))
+  }
+})
+
+test('squareDimmer Fade Width ramps smoothly between max and min at each edge instead of snapping', () => {
+  const at = (phase, params) => EFFECT_PROGRAMS.squareDimmer.tick(asteraHeliosProfile7, phase, params)[0].value
+  const params = { dutyCycle: 50, fadeWidth: 10, min: 0, max: 100 } // 10% of the cycle ramps at each edge
+
+  // flat "on" well before the falling edge
+  assert.equal(at(0, params), 255)
+  assert.equal(at(0.4, params), 255)
+  // falling ramp: strictly between max and min partway through the 10% ramp (0.5-0.6)
+  const midFall = at(0.55, params)
+  assert.ok(midFall > 0 && midFall < 255, `expected a mid-fade value, got ${midFall}`)
+  // flat "off" once the ramp finishes, well before the rising ramp starts
+  assert.equal(at(0.7, params), 0)
+  assert.equal(at(0.85, params), 0)
+  // rising ramp: strictly between min and max partway through the final 10% before wrap
+  const midRise = at(0.95, params)
+  assert.ok(midRise > 0 && midRise < 255, `expected a mid-rise value, got ${midRise}`)
+  // and back to full "on" right at the wrap, continuous with phase 0 above
+  assert.equal(at(0.999, params) > 200, true, 'must be nearly back to full brightness just before the wrap')
+})
+
+test('squareDimmer Fade Width is clamped so the two ramps never overlap, however wide it\'s set', () => {
+  const at = (phase, params) => EFFECT_PROGRAMS.squareDimmer.tick(asteraHeliosProfile7, phase, params)[0].value
+  // duty=90 leaves only 10% of the cycle for "off" — even an extreme fadeWidth must not
+  // produce a negative or NaN result, or a value outside [0, 255]
+  for (const phase of [0, 0.3, 0.5, 0.7, 0.9, 0.92, 0.95, 0.98, 0.999]) {
+    const v = at(phase, { dutyCycle: 90, fadeWidth: 50, min: 0, max: 100 })
+    assert.ok(Number.isFinite(v) && v >= 0 && v <= 255, `expected a valid 0-255 value at phase ${phase}, got ${v}`)
+  }
+})
+
 
 function fakeInstance() {
   const calls = []
