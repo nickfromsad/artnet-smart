@@ -368,8 +368,15 @@ function effectStartFields(profile, { includePhaseSpread }) {
   // off (Dimmer stuck at 0) or black (RGB never set) while the effect runs.
   const rgbPrograms = programs.filter((p) => p.touches === 'rgb')
   const dimmerPrograms = programs.filter((p) => p.touches === 'dimmer')
+  const hasTwoColorWave = dimmerPrograms.some((p) => p.id === 'sineDimmer') && hasRgb(profile)
+  // "Two-Color Wave" (sineDimmer + RGB only) blends colors via RGB directly instead of
+  // scaling Dimmer, so it needs the same kind of one-shot Dimmer baseline Rainbow does.
+  const twoColorWaveExpression = "$(options:program) == 'sineDimmer' && $(options:twoColorWave)"
 
-  if (rgbPrograms.length > 0) {
+  if (rgbPrograms.length > 0 || hasTwoColorWave) {
+    const dimmerPercentVisible = hasTwoColorWave
+      ? [anyProgramExpression(rgbPrograms), twoColorWaveExpression].filter(Boolean).join(' || ')
+      : anyProgramExpression(rgbPrograms)
     fields.push({
       id: 'dimmerPercent',
       type: 'number',
@@ -378,12 +385,13 @@ function effectStartFields(profile, { includePhaseSpread }) {
       max: 100,
       default: 100,
       step: 1,
-      isVisibleExpression: anyProgramExpression(rgbPrograms),
+      isVisibleExpression: dimmerPercentVisible,
     })
   }
 
   if (dimmerPrograms.length > 0) {
     const dimmerVisible = anyProgramExpression(dimmerPrograms)
+    const dimmerMinMaxVisible = hasTwoColorWave ? `(${dimmerVisible}) && !(${twoColorWaveExpression})` : dimmerVisible
     // only meaningful on fixtures that actually have RGB — a Dimmer-only fixture (or
     // one whose only color control is CCT, like the Lupo Dayled) has nothing for this
     // field to set
@@ -405,7 +413,7 @@ function effectStartFields(profile, { includePhaseSpread }) {
       max: 100,
       default: 0,
       step: 1,
-      isVisibleExpression: dimmerVisible,
+      isVisibleExpression: dimmerMinMaxVisible,
     })
     fields.push({
       id: 'dimmerMax',
@@ -415,7 +423,28 @@ function effectStartFields(profile, { includePhaseSpread }) {
       max: 100,
       default: 100,
       step: 1,
-      isVisibleExpression: dimmerVisible,
+      isVisibleExpression: dimmerMinMaxVisible,
+    })
+  }
+
+  // Two-Color Wave: blends Sine Breathing's wave shape between two RGB colors instead
+  // of fading one color down to black via Dimmer. Only offered on fixtures that
+  // actually have RGB to blend — a Dimmer-only fixture just keeps the normal breath.
+  if (hasTwoColorWave) {
+    fields.push({
+      id: 'twoColorWave',
+      type: 'checkbox',
+      label: 'Two-Color Wave (blend to a second color instead of fading to black)',
+      default: false,
+      isVisibleExpression: "$(options:program) == 'sineDimmer'",
+    })
+    fields.push({
+      id: 'backgroundColor',
+      type: 'colorpicker',
+      label: 'Background Color (shown in the dips/blank space instead of black)',
+      default: 0x000000,
+      returnType: 'number',
+      isVisibleExpression: twoColorWaveExpression,
     })
   }
 
@@ -493,7 +522,13 @@ function effectOneShotOverrides(profile, options) {
     }
   }
 
-  if (program.touches === 'rgb') {
+  // Two-Color Wave (Sine Breathing + RGB) blends colors via RGB every tick instead of
+  // scaling Dimmer, so it wants the same one-shot Dimmer baseline an 'rgb'-touching
+  // program does, not the one-shot Color baseline a 'dimmer'-touching program normally
+  // gets — even though sineDimmer's own `touches` stays 'dimmer' for everything else.
+  const isTwoColorWave = program.id === 'sineDimmer' && !!options.twoColorWave && hasRgb(profile)
+
+  if (program.touches === 'rgb' || isTwoColorWave) {
     const dimmerChannels = findChannels(profile, 'dimmer')
     if (dimmerChannels.length > 0) {
       const percent = Number(options.dimmerPercent)
@@ -504,7 +539,7 @@ function effectOneShotOverrides(profile, options) {
     }
   }
 
-  if (program.touches === 'dimmer') {
+  if (program.touches === 'dimmer' && !isTwoColorWave) {
     if (hasRgb(profile)) {
       const { r, g, b } = decodeColor(Number(options.color))
       for (const group of rgbGroups(profile)) {
@@ -527,6 +562,13 @@ function effectParams(profile, options) {
   }
   if (program?.id === 'rainbow' || program?.id === 'sineDimmer') {
     params.blankSpace = Number(options.blankSpace ?? 0)
+  }
+  if (program?.id === 'sineDimmer') {
+    params.twoColorWave = !!options.twoColorWave && hasRgb(profile)
+    if (params.twoColorWave) {
+      params.color = Number(options.color ?? 0xffffff)
+      params.backgroundColor = Number(options.backgroundColor ?? 0x000000)
+    }
   }
   if (program?.touches === 'dimmer') {
     params.min = Number(options.dimmerMin)

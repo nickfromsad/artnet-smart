@@ -133,6 +133,16 @@ Three effect types are built in:
 - **Sine Breathing Dimmer** — Dimmer smoothly pulses between a Min% and Max%, fading in
   and out. Only touches Dimmer; a **Color while running** field is sent once at start
   (it doesn't otherwise touch RGB).
+  - **Two-Color Wave** (checkbox, RGB fixtures only, default off): instead of fading
+    your chosen color down to black, blends it with a second **Background Color**
+    field instead — e.g. a red wave breathing against a white background, rather than
+    red fading to nothing. When this is on, Dimmer Min/Max stop applying (the color
+    blend itself now carries the brightness/visibility) and a **Dimmer while running
+    (%)** field appears instead, working the same way it does for Color Rainbow — an
+    overall intensity held constant while the color blend does the animating. Combines
+    with Blank Space below: e.g. Blank Space 60% + Two-Color Wave gives you a compact
+    red comet traveling across a white line, instead of a wave that fades to black in
+    the gaps.
 
 Both Color Rainbow and Sine Breathing share a **Blank Space (%)** field (default `0` —
 runs continuously the whole cycle, like before): a slider (drag it and you're directly
@@ -237,9 +247,9 @@ Presets exist for all of this (per fixture: Start Rainbow / Start Sine Breathing
 Start Hard Blink / Stop Effect; per profile, in a `<Profile> — Chase` category: Start
 Rainbow Chase / Start Breathing Chase / Start Random Breathing Chase / Start Hard Blink
 Chase / Start Random Blink Chase / Stop Chase) with sensible defaults (4 second cycle,
-full range, 50% on time, 0% fade width/blank space — continuous, hard-edged, like
-before) — drag one on, then tweak Speed/Phase Spread/Min-Max/On Time/Fade Width/Blank
-Space/Random Order to taste.
+full range, 50% on time, 0% fade width/blank space, Two-Color Wave off — continuous,
+hard-edged, fades to black, like before) — drag one on, then tweak Speed/Phase
+Spread/Min-Max/On Time/Fade Width/Blank Space/Two-Color Wave/Random Order to taste.
 
 ### Tap Tempo
 

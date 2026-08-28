@@ -61,6 +61,16 @@ function pixelIndex(i, n, reverse) {
 }
 
 /**
+ * 0->1->0 breathing shape for a phase p within a hump of width waveWidth (fraction of
+ * the full cycle) — 0 at the hump's start/end, 1 at its midpoint, and 0 for the rest of
+ * the cycle once p passes waveWidth. Shared by sineDimmer's Dimmer curve and its
+ * two-color RGB blend, since both need exactly the same 0-1-0 envelope.
+ */
+function waveShape(p, waveWidth) {
+  return waveWidth > 0 && p < waveWidth ? 0.5 - 0.5 * Math.cos((p / waveWidth) * 2 * Math.PI) : 0
+}
+
+/**
  * squareDimmer's on/off fraction at phase p, with an optional smooth ramp at each edge
  * instead of an instant snap. `duty` = fraction of the cycle at "on" (1), matching
  * today's boundary exactly when fade=0. `fade` = fraction of the cycle each ramp
@@ -114,25 +124,49 @@ export const EFFECT_PROGRAMS = {
     touches: 'dimmer',
     supports: (profile) => findChannels(profile, 'dimmer').length > 0,
     tick: (profile, phase, params = {}) => {
-      const min = clampPercent(params.min ?? 0)
-      const max = clampPercent(params.max ?? 100)
       const spread = params.pixelPhaseSpread ?? 0
       const reverse = !!params.reversePixelOrder
       // fraction of the cycle the breath itself occupies; the rest is flat dark ("Blank
       // Space"). blankSpace=0 (the default) -> waveWidth=1 -> identical to the original
       // always-breathing formula, since p/1 = p.
       const waveWidth = 1 - clampPercent(params.blankSpace ?? 0) / 100
+
+      // Two-Color Wave: instead of one color fading down to black via the Dimmer
+      // channel, blend directly between two RGB colors — the breathing shape now
+      // picks a point along that blend rather than scaling brightness. Dimmer itself
+      // stays out of it entirely here (held at a one-shot baseline by actions.js, same
+      // as Rainbow); see effectOneShotOverrides/effectParams for the other half of this.
+      if (params.twoColorWave && hasRgb(profile)) {
+        const fg = params.color ?? 0xffffff
+        const bg = params.backgroundColor ?? 0x000000
+        const fgR = (fg >> 16) & 0xff
+        const fgG = (fg >> 8) & 0xff
+        const fgB = fg & 0xff
+        const bgR = (bg >> 16) & 0xff
+        const bgG = (bg >> 8) & 0xff
+        const bgB = bg & 0xff
+        const groups = rgbGroups(profile)
+        const overrides = []
+        groups.forEach((group, i) => {
+          const idx = pixelIndex(i, groups.length, reverse)
+          const shape = waveShape(pixelPhase(phase, idx, groups.length, spread), waveWidth)
+          overrides.push({ offset: group.red.offset, value: Math.round(bgR + (fgR - bgR) * shape) })
+          overrides.push({ offset: group.green.offset, value: Math.round(bgG + (fgG - bgG) * shape) })
+          overrides.push({ offset: group.blue.offset, value: Math.round(bgB + (fgB - bgB) * shape) })
+        })
+        return overrides
+      }
+
+      const min = clampPercent(params.min ?? 0)
+      const max = clampPercent(params.max ?? 100)
       const channels = findChannels(profile, 'dimmer')
       return channels.map((channel, i) => {
         const idx = pixelIndex(i, channels.length, reverse)
-        const p = pixelPhase(phase, idx, channels.length, spread)
         // starts at min (start of the breath), peaks at max (midway through it), back
         // to min (end of the breath), then flat dark for the rest of the cycle — a
         // compact breathing "hump" instead of a wave that never actually goes dark
-        const percent =
-          waveWidth > 0 && p < waveWidth
-            ? min + (max - min) * (0.5 - 0.5 * Math.cos((p / waveWidth) * 2 * Math.PI))
-            : min
+        const shape = waveShape(pixelPhase(phase, idx, channels.length, spread), waveWidth)
+        const percent = min + (max - min) * shape
         return { offset: channel.offset, value: Math.round((percent * 255) / 100) }
       })
     },

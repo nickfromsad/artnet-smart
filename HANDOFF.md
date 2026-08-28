@@ -239,6 +239,30 @@ see the Astera profiles for the shape).
     (Rainbow is `touches:'rgb'`, Sine Breathing is `touches:'dimmer'` — the shared field
     lives outside both of those branches). If a 3rd program ever wants this shape, reuse
     the same field/gate rather than adding a new one.
+15. **Sine Breathing's "Two-Color Wave" makes `touches` fixture-dependent, the one
+    genuine exception to "a program's `touches` is a fixed 'rgb'|'dimmer' value."** User
+    wanted 2 real colors (e.g. red/white) instead of 1 color fading to black — which
+    only a Dimmer scaling a fixed color can never produce (dimming a static RGB value
+    just darkens it, it can't shift hue). Fix: `sineDimmer.tick()` branches on
+    `params.twoColorWave && hasRgb(profile)` — when true, it writes RGB directly every
+    tick (linear-interpolating `params.color` (peak, reused from the existing "Color
+    while running" field) and `params.backgroundColor` (new field) by the same
+    `waveShape()` envelope Blank Space already uses) and never touches the Dimmer
+    channel at all; when false (default, or a Dimmer-only fixture), behavior is
+    byte-identical to before. This means sineDimmer *acts* like an `'rgb'`-touching
+    program (wants the Dimmer one-shot baseline, not the Color one-shot baseline) only
+    in this mode — `program.touches` itself stays the static string `'dimmer'`
+    (unchanged, so `dimmerPrograms`/`rgbPrograms` filtering in `effectStartFields`
+    still works), but `effectOneShotOverrides` computes its own
+    `isTwoColorWave = program.id === 'sineDimmer' && options.twoColorWave &&
+    hasRgb(profile)` and branches independently of `touches` for this one case. Field
+    visibility follows: Dimmer Min/Max hide (`dimmerVisible && !twoColorWaveExpression`)
+    since they're meaningless once RGB carries the brightness; the existing Dimmer
+    while running (%) field (normally Rainbow-only) extends to cover this case instead,
+    reused rather than duplicated — same "share, don't proliferate" reasoning as rule
+    14's `blankSpace`. Gated to RGB fixtures only (`hasTwoColorWave = ... &&
+    hasRgb(profile)`), computed once and reused everywhere so no expression ever
+    references a field (`twoColorWave`) that doesn't exist on non-RGB profiles.
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -256,11 +280,12 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 124 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 127 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
 program math + BPM live-follow + squareDimmer's Fade Width shape/clamping +
-sineDimmer's/rainbow's shared Blank Space shape), `effects-actions.test.js`
+sineDimmer's/rainbow's shared Blank Space shape + sineDimmer's Two-Color Wave RGB
+blend, including its no-op fallback on Dimmer-only fixtures), `effects-actions.test.js`
 (action-layer wiring for effects), `tap-tempo.test.js`,
 `multi-pixel.test.js` (Profile 80's fan-out: one field
 writes every pixel's channel, Strobe stays single, effects animate all pixels in sync;
@@ -308,7 +333,7 @@ calling it done.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 124 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 127 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.

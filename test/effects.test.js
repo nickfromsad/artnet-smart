@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { hsvToRgb, EFFECT_PROGRAMS } from '../src/effects/programs.js'
 import { EffectsEngine, shuffle } from '../src/effects/engine.js'
 import { asteraHeliosProfile7 } from '../src/fixtures/astera-helios-profile7.js'
+import { genericDimmer } from '../src/fixtures/generic-dimmer.js'
 import { TapTempo } from '../src/tap-tempo.js'
 import { fixtureRegistry } from '../src/fixtures/registry.js'
 import { buildActionDefinitions } from '../src/actions.js'
@@ -104,6 +105,40 @@ test('sineDimmer Blank Space=99 (the max allowed) still produces a nonzero-width
   const at = (phase) => EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile7, phase, { min: 0, max: 100, blankSpace: 99 })[0].value
   assert.ok(at(0.005) > 0, 'somewhere inside the 1%-wide hump the breath must be audible/visible')
   assert.equal(at(0.5), 0) // well outside the tiny hump -> dark
+})
+
+function rgbAt(profile, phase, params) {
+  const o = EFFECT_PROGRAMS.sineDimmer.tick(profile, phase, params)
+  return { r: o.find((c) => c.offset === 0).value, g: o.find((c) => c.offset === 1).value, b: o.find((c) => c.offset === 2).value }
+}
+
+test('sineDimmer Two-Color Wave overrides RGB (not Dimmer), blending background color at phase 0 to peak color at the midpoint', () => {
+  // same phase convention as the plain breath: starts at "min" (phase 0), peaks at
+  // "max" (phase 0.5) — here "min" = Background Color, "max" = Color A (peak)
+  const params = { twoColorWave: true, color: 0xff0000, backgroundColor: 0xffffff, blankSpace: 0 }
+  const overrides = EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile7, 0, params)
+  const offsets = overrides.map((o) => o.offset).sort()
+  assert.deepEqual(offsets, [0, 1, 2], 'Two-Color Wave must write RGB, not the Dimmer channel')
+
+  assert.deepEqual(rgbAt(asteraHeliosProfile7, 0, params), { r: 255, g: 255, b: 255 }) // phase 0: pure Background Color
+  assert.deepEqual(rgbAt(asteraHeliosProfile7, 0.5, params), { r: 255, g: 0, b: 0 }) // phase 0.5: pure Color A (peak)
+
+  const mid = rgbAt(asteraHeliosProfile7, 0.25, params) // partway through the blend
+  assert.ok(mid.g > 0 && mid.g < 255, `expected a genuine in-between blend, got g=${mid.g}`)
+  assert.equal(mid.r, 255, 'red channel stays saturated the whole way since both colors are fully red')
+})
+
+test('sineDimmer Two-Color Wave respects Blank Space: background color shows in the dips, not black', () => {
+  const params = { twoColorWave: true, color: 0xff0000, backgroundColor: 0xffffff, blankSpace: 60 }
+  // outside the compressed hump, must show the background color, not off/black
+  assert.deepEqual(rgbAt(asteraHeliosProfile7, 0.9, params), { r: 255, g: 255, b: 255 })
+})
+
+test('sineDimmer Two-Color Wave is ignored on a fixture with no RGB (falls back to the normal Dimmer breath)', () => {
+  const params = { twoColorWave: true, color: 0xff0000, backgroundColor: 0xffffff, min: 0, max: 100 }
+  const withRgbFlag = EFFECT_PROGRAMS.sineDimmer.tick(genericDimmer, 0.5, params)
+  const without = EFFECT_PROGRAMS.sineDimmer.tick(genericDimmer, 0.5, { min: 0, max: 100 })
+  assert.deepEqual(withRgbFlag, without, 'a Dimmer-only fixture has nothing to blend, so twoColorWave must be a no-op')
 })
 
 test('squareDimmer program overrides only the Dimmer channel, snapping hard between min and max (no fade)', () => {

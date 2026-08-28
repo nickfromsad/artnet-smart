@@ -136,7 +136,7 @@ test('Start Effect (Sine Dimmer): sends a one-shot Color baseline and starts the
 
   const start = effectCalls.find((c) => c.type === 'start')
   assert.equal(start.id, 'astera-helios-profile7_f2_sineDimmer')
-  assert.deepEqual(start.opts.params, { min: 10, max: 90, blankSpace: 0 })
+  assert.deepEqual(start.opts.params, { min: 10, max: 90, blankSpace: 0, twoColorWave: false })
 })
 
 test('Stop Effect stops both possible program ids on that fixture', async () => {

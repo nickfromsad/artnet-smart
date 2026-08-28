@@ -20,7 +20,10 @@ function supportedPrograms(profile) {
 function effectStartOptions(profile, programId, extra = {}) {
   const options = { program: programId, periodSeconds: 4, followBpm: false, beatsPerCycle: 1 }
   const programs = supportedPrograms(profile)
-  if (programs.some((p) => p.touches === 'rgb')) options.dimmerPercent = 100
+  // sineDimmer also wants a Dimmer baseline when Two-Color Wave is on (it blends RGB
+  // instead of scaling Dimmer then) — matches the default (off), but keeps the option
+  // present so the preset stays correct if someone flips it on later via this button
+  if (programs.some((p) => p.touches === 'rgb') || programId === 'sineDimmer') options.dimmerPercent = 100
   if (programs.some((p) => p.touches === 'dimmer')) {
     if (hasRgb(profile)) options.color = 0xffffff // nothing for "Color while running" to set otherwise
     options.dimmerMin = 0
@@ -31,6 +34,10 @@ function effectStartOptions(profile, programId, extra = {}) {
     options.fadeWidth = 0
   }
   if (programId === 'rainbow' || programId === 'sineDimmer') options.blankSpace = 0
+  if (programId === 'sineDimmer' && hasRgb(profile)) {
+    options.twoColorWave = false
+    options.backgroundColor = 0x000000
+  }
   // matches the Pixel Phase Spread field's own default (actions.js) — ripples across
   // this fixture's own pixels out of the box, rather than pulsing them all in
   // lockstep. Chase presets (extra.phaseSpread set) don't get this: Chase derives its
