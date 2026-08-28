@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fixtureRegistry } from '../src/fixtures/registry.js'
 import { buildActionDefinitions } from '../src/actions.js'
-import { EFFECT_PROGRAMS } from '../src/effects/programs.js'
+import { EFFECT_PROGRAMS, hsvToRgb } from '../src/effects/programs.js'
+import { EffectsEngine } from '../src/effects/engine.js'
 import { asteraHeliosProfile80 } from '../src/fixtures/astera-helios-profile80.js'
 
 /**
@@ -13,13 +14,13 @@ import { asteraHeliosProfile80 } from '../src/fixtures/astera-helios-profile80.j
  * not just the first.
  */
 
-function fakeInstanceWithProfile80() {
-  const config = {
-    fixtureCount: 1,
-    fixture1Name: 'Batten 1',
-    fixture1Type: 'astera-helios-profile80',
-    fixture1Universe: 0,
-    fixture1Start: 1,
+function fakeInstanceWithProfile80(count = 1) {
+  const config = { fixtureCount: count }
+  for (let i = 1; i <= count; i++) {
+    config[`fixture${i}Name`] = `Batten ${i}`
+    config[`fixture${i}Type`] = 'astera-helios-profile80'
+    config[`fixture${i}Universe`] = 0
+    config[`fixture${i}Start`] = (i - 1) * 25 + 1
   }
   const sent = []
   const effectCalls = []
@@ -195,4 +196,111 @@ test('pixelPhaseSpread has no effect on single-pixel profiles (only one pixel to
     pixelPhaseSpread: 0,
   })
   assert.deepEqual(withSpread, withoutSpread)
+})
+
+/**
+ * Comet: a bright leading edge fading linearly to dark, distinct from Hard On/Off
+ * Blink's hard snap. Reuses the same pixelPhaseSpread plumbing as the other 3
+ * programs, so it inherits the wave-flattening below for free.
+ */
+
+test('Comet with pixelPhaseSpread=1: brightness differs across the 4 pixels, not identical', () => {
+  const overrides = EFFECT_PROGRAMS.comet.tick(asteraHeliosProfile80, 0.1, { hue: 0, blankSpace: 0, pixelPhaseSpread: 1 })
+  const reds = PIXEL_STARTS.map((start) => overrides.find((o) => o.offset === start).value)
+  assert.ok(new Set(reds).size > 1, `expected differing brightness across pixels, got ${reds}`)
+})
+
+/**
+ * Chase across multiple Profile 80 fixtures: Phase Spread now automatically flattens
+ * "fixtures x their own pixels" into one continuous line (see HANDOFF.md for the
+ * derivation) — the standalone Pixel Phase Spread field only exists on Start Effect;
+ * Start Chase derives its own per-fixture pixel spread as phaseSpread/fixtureCount.
+ */
+
+test('Pixel Phase Spread field does not exist on Start Chase (it is derived automatically from Phase Spread there)', () => {
+  const { instance } = fakeInstanceWithProfile80(2)
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_start_chase']
+  assert.ok(!action.options.some((o) => o.id === 'pixelPhaseSpread'))
+})
+
+test("Start Chase with 1 patched fixture: pixelPhaseSpread reduces to the Chase's own Phase Spread unchanged", async () => {
+  const { instance, effectCalls } = fakeInstanceWithProfile80(1)
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_start_chase']
+
+  await action.callback({ options: { program: 'rainbow', periodSeconds: 4, phaseSpread: 2, dimmerPercent: 100 } })
+
+  const start = effectCalls.find((c) => c.type === 'start')
+  assert.equal(start.opts.params.pixelPhaseSpread, 2)
+})
+
+test('Start Chase with 4 patched fixtures: pixelPhaseSpread is Phase Spread divided by the fixture count', async () => {
+  const { instance, effectCalls } = fakeInstanceWithProfile80(4)
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_start_chase']
+
+  await action.callback({ options: { program: 'rainbow', periodSeconds: 4, phaseSpread: 1, dimmerPercent: 100 } })
+
+  const start = effectCalls.find((c) => c.type === 'start')
+  assert.equal(start.opts.params.pixelPhaseSpread, 0.25)
+})
+
+test('Start Chase Reverse Direction: the negated sign carries through into pixelPhaseSpread too', async () => {
+  const { instance, effectCalls } = fakeInstanceWithProfile80(2)
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_start_chase']
+
+  await action.callback({
+    options: { program: 'rainbow', periodSeconds: 4, phaseSpread: 1, reverseDirection: true, dimmerPercent: 100 },
+  })
+
+  const start = effectCalls.find((c) => c.type === 'start')
+  assert.equal(start.opts.phaseSpread, -1)
+  assert.equal(start.opts.params.pixelPhaseSpread, -0.5)
+})
+
+test('end-to-end: chasing 2 Profile 80 fixtures produces one continuous 8-position wave, not two independent ripples', async () => {
+  const config = { fixtureCount: 2 }
+  for (let i = 1; i <= 2; i++) {
+    config[`fixture${i}Name`] = `Batten ${i}`
+    config[`fixture${i}Type`] = 'astera-helios-profile80'
+    config[`fixture${i}Universe`] = 0
+    config[`fixture${i}Start`] = (i - 1) * 25 + 1
+  }
+  const merged = {}
+  const instance = {
+    config,
+    log: () => {},
+    sender: {
+      setChannels: () => {},
+      mergeChannels: (u, s, v) => {
+        merged[u] = merged[u] || {}
+        v.forEach((val, idx) => {
+          if (val !== undefined) merged[u][s + idx] = val
+        })
+      },
+      flushAll: () => {},
+    },
+  }
+  instance.effects = new EffectsEngine(instance)
+  clearInterval(instance.effects.timer) // drive ticks manually below, not the real 40ms timer
+
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_start_chase']
+  const periodMs = 8000
+  await action.callback({ options: { program: 'rainbow', periodSeconds: periodMs / 1000, phaseSpread: 1, dimmerPercent: 100 } })
+
+  const effect = instance.effects.running.get('astera-helios-profile80_chase_rainbow')
+  assert.ok(effect, 'the chase must actually be running')
+
+  // One tick, frozen in time — the whole point is that all 8 pixels' phases spread
+  // out spatially at a single instant, not that they change together as time passes.
+  instance.effects.tick(effect.startedAt)
+
+  // fixture1's 4 pixels (start ch 1: red at 1,7,13,19), then fixture2's 4 pixels
+  // (start ch 26: red at 26,32,38,44) — the 8 flattened positions in wave order
+  const absoluteRedOffsets = [1, 7, 13, 19, 26, 32, 38, 44]
+  for (let k = 0; k < 8; k++) {
+    const expected = hsvToRgb((k / 8) * 360, 1, 1).r
+    const actual = merged[0][absoluteRedOffsets[k]]
+    assert.equal(actual, expected, `position k=${k} (wave order): expected red ${expected}, got ${actual}`)
+  }
+
+  instance.effects.destroy()
 })

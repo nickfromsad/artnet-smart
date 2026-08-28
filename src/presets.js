@@ -27,9 +27,15 @@ function effectStartOptions(profile, programId, extra = {}) {
     options.dimmerMax = 100
   }
   if (programId === 'squareDimmer') options.dutyCycle = 50
+  if (programId === 'comet') {
+    options.cometHue = 200
+    options.cometBlankSpace = 70
+  }
   // matches the Pixel Phase Spread field's own default (actions.js) — ripples across
-  // this fixture's own pixels out of the box, rather than pulsing them all in lockstep
-  if (pixelCount(profile) > 1) options.pixelPhaseSpread = 1
+  // this fixture's own pixels out of the box, rather than pulsing them all in
+  // lockstep. Chase presets (extra.phaseSpread set) don't get this: Chase derives its
+  // own pixel spread automatically from Phase Spread, the field doesn't exist there.
+  if (pixelCount(profile) > 1 && !('phaseSpread' in extra)) options.pixelPhaseSpread = 1
   return { ...options, ...extra }
 }
 
@@ -200,6 +206,17 @@ function buildFixtureEffectPresets(profile, startActionId, stopActionId, fixture
     )
   }
 
+  if (programs.some((p) => p.id === 'comet')) {
+    presets[`${idPrefix}_start_comet`] = buttonPreset(
+      'Start Comet',
+      `${fixtureName}\\nCOMET`,
+      0x336688,
+      startActionId,
+      effectStartOptions(profile, 'comet'),
+      category,
+    )
+  }
+
   if (programs.length > 0) {
     presets[`${idPrefix}_stop_effect`] = buttonPreset(
       'Stop Effect',
@@ -266,6 +283,17 @@ function buildChasePresets(profile) {
       0x664400,
       `${profile.id}_start_chase`,
       effectStartOptions(profile, 'squareDimmer', { phaseSpread: 1, randomOrder: true }),
+      category,
+    )
+  }
+
+  if (programs.some((p) => p.id === 'comet')) {
+    presets[`${idPrefix}_start_comet`] = buttonPreset(
+      'Start Comet Chase',
+      'COMET\\nCHASE',
+      0x336688,
+      `${profile.id}_start_chase`,
+      effectStartOptions(profile, 'comet', { phaseSpread: 1 }),
       category,
     )
   }

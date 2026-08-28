@@ -49,7 +49,7 @@ test('Start Effect fields: program dropdown, speed, and per-program fields gated
   const programField = action.options.find((o) => o.id === 'program')
   assert.deepEqual(
     programField.choices.map((c) => c.id).sort(),
-    ['rainbow', 'sineDimmer', 'squareDimmer'],
+    ['comet', 'rainbow', 'sineDimmer', 'squareDimmer'],
   )
   assert.ok(action.options.some((o) => o.id === 'periodSeconds'))
   assert.ok(!action.options.some((o) => o.id === 'phaseSpread'), 'phaseSpread only belongs on the Chase action')

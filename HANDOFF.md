@@ -81,9 +81,10 @@ src/fixtures/               Fixture profile DATA — the extension point. Add a 
   generic-dimmer.js           Single Dimmer channel only.
 
 src/effects/                 Internal ~25Hz tick engine.
-  programs.js                  Pure per-tick math. EFFECT_PROGRAMS.rainbow
+  programs.js                  Pure per-tick math. EFFECT_PROGRAMS.rainbow/.comet
                                (touches:'rgb', needs hasRgb), .sineDimmer/.squareDimmer
-                               (touches:'dimmer', needs a dimmer channel). hsvToRgb here.
+                               (touches:'dimmer', needs a dimmer channel). hsvToRgb and
+                               the pixelPhase() per-pixel-spread helper live here too.
   engine.js                    EffectsEngine class, TICK_MS=40. shuffle() (Fisher-Yates,
                                injectable randomFn for tests) lives here too. Handles
                                per-lap reshuffle (Random Order), live BPM-follow (reads
@@ -151,16 +152,43 @@ see the Astera profiles for the shape).
    within-fixture counterpart to Chase's cross-fixture Phase Spread.** Added after the
    user asked for Sine Breathing to animate across a tube's own 4 pixels instead of
    pulsing them all in lockstep. Lives entirely in `src/effects/programs.js`'s
-   `pixelPhase()` helper — each program's `tick()` now computes a per-pixel-index phase
+   `pixelPhase()` helper — each program's `tick()` computes a per-pixel-index phase
    offset (`spread=0`/single-pixel profile ⇒ always identical to the old behavior, so no
    engine changes were needed: `engine.js` already just calls `program.tick(profile,
    phase, params)` and merges whatever offsets come back). The field
-   (`pixelPhaseSpread`, `pixelCount(profile) > 1` gated) appears on **both** Start
-   Effect and Start Chase, unlike Reverse Direction/Random Order which are chase-only —
-   it composes with the fixture-level Phase Spread rather than replacing it. Defaults to
-   `1` (rippling), both on the field and in presets — deliberately not `0`, since a bare
-   "add the fixture" pass would otherwise leave Profile 80 pulsing in sync by default and
-   require an extra manual step to get the behavior the user actually asked for.
+   (`pixelPhaseSpread`, `pixelCount(profile) > 1` gated) appears **only on Start
+   Effect** — on Start Chase it doesn't exist as a field at all; see rule 10.
+10. **A Chase automatically flattens "every targeted fixture's own pixels" into one
+    continuous line, derived from Phase Spread — not a second independent field.**
+    User request: chasing 2 Astera Helios Profile 80 fixtures should look like one
+    wave (fixture1 pixel1→2→3→4, then fixture2 pixel1→2→3→4), not two fixtures each
+    re-rippling through nearly a full cycle while also staggering against each other
+    (which is what independently-set Phase Spread + Pixel Phase Spread produced).
+    Derivation: with F fixtures, P = `pixelCount(profile)` pixels each (same profile
+    for the whole chase), N = F·P flattened positions, `offset(k=i·P+j) = (i/F)·S +
+    (j/P)·(S/F)` where S is the Chase's `phaseSpread`. The first term is `engine.js`'s
+    existing unchanged per-fixture formula; the second means the pixel-level spread fed
+    into `program.tick()` must be `S/F` (not the user's own value — the field is
+    removed from Chase entirely, see rule 9). Computed once in `buildChaseStartAction`
+    (`src/actions.js`), **not** in `engine.js` — doing it there correctly reduces to
+    `S/1 = S` when a chase runs against only 1 currently-patched fixture (a reachable
+    state), where an engine-side `orderedIndices.length > 1` gate would instead
+    silently zero out that one fixture's own pixel ripple, a regression. Reverse
+    Direction and Random Order both keep working unchanged (sign flows through the
+    division; shuffling only changes which fixture sits at position `i`).
+11. **Comet is a 4th `EFFECT_PROGRAMS` entry** (`touches:'rgb'`, same `supports`gate as
+    Rainbow): a bright leading edge (`hue` param, single custom color via the existing
+    `hsvToRgb`) fading linearly to black by `cometWidth = 1 - blankSpace/100` of the
+    cycle, then flat dark until the wrap — distinct from Hard On/Off Blink's instant
+    snap. Reuses `pixelPhase()` exactly like the other 3 programs, so it inherits rules
+    9/10's wave-flattening for free with zero extra code. Its two new fields
+    (`cometHue` 0-360, `cometBlankSpace` 0-99) are the first to use Companion's
+    `range: true` number-field option (renders as a slider) — added because the user
+    explicitly wanted these as sliders, not typed numbers; confirmed supported in the
+    pinned `@companion-module/base@1.14.1`'s type declarations, no dependency change
+    needed. `cometBlankSpace` is capped at 99, not 100: at 100 the comet has zero width
+    and is permanently invisible — mirrors `squareDimmer`'s existing `dutyCycle`
+    `min:1,max:99` guard against the same class of degenerate always-off state.
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -178,14 +206,17 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 107 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 117 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
-program math + BPM live-follow), `effects-actions.test.js` (action-layer wiring for
-effects), `tap-tempo.test.js`, `multi-pixel.test.js` (Profile 80's fan-out: one field
-writes every pixel's channel, Strobe stays single, effects animate all pixels in sync;
-Pixel Phase Spread ripples them out of sync on request and is a no-op at 0 or on
-single-pixel profiles).
+program math + BPM live-follow + Comet's fade shape), `effects-actions.test.js`
+(action-layer wiring for effects), `tap-tempo.test.js`, `multi-pixel.test.js` (Profile
+80's fan-out: one field writes every pixel's channel, Strobe stays single, effects
+animate all pixels in sync; Pixel Phase Spread ripples them out of sync on request and
+is a no-op at 0 or on single-pixel profiles; Chase auto-derives its per-fixture pixel
+spread from Phase Spread/fixtureCount, including an end-to-end `EffectsEngine` test
+proving 2 chased Profile 80 fixtures form one continuous 8-position wave, not two
+independent ripples).
 
 Manual verification pattern used throughout: ad-hoc `node -e "..."` smoke scripts run
 via Bash (not saved to the repo) that wire `buildActionDefinitions`/
@@ -206,17 +237,24 @@ calling it done.
   after a chase starts won't join it.
 - A 3-channel Lupo Dayled variant (adds Strobe, per its own chart) was **not** built —
   only the 2-channel CCT mode was requested.
-- Profile 80's Pixel Phase Spread has no Reverse Direction/Random Order equivalent
-  (unlike the cross-fixture Chase, which has both) — it's just a spread amount. Adding
-  those would need the engine to track a per-effect pixel shuffle state, separate from
-  the existing per-effect fixture shuffle; not built since it wasn't asked for.
+- Profile 80's Pixel Phase Spread (Start Effect) has no Random Order equivalent for
+  shuffling pixel order (unlike the cross-fixture Chase) — Reverse Direction's sign
+  does now compose automatically wherever pixel spread is derived from a signed Phase
+  Spread (rule 10), but there's no way to independently randomize which pixel leads
+  within one fixture. Would need the engine to track a per-effect pixel shuffle state,
+  separate from the existing per-effect fixture shuffle; not built since it wasn't
+  asked for.
+- Comet is single-color per run (one `hue` field) — no gradient/rainbow-tinted comet,
+  and no separate "trailing tail length vs. solid head length" split (the whole
+  `cometWidth` fades linearly from full brightness at the leading edge, no flat-bright
+  head segment before the fade starts). Revisit if asked for a more elaborate shape.
 - The user's exact Companion version was never confirmed; `1.14.1` was chosen for broad
   compatibility, not because a specific version was stated. If something in the module
   API breaks against their real Companion instance, that's the first thing to check.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 107 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 117 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.

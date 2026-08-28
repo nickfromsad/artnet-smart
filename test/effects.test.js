@@ -83,6 +83,57 @@ test('squareDimmer respects a custom duty cycle and a narrower min/max range', (
   assert.equal(off.value, Math.round((20 * 255) / 100))
 })
 
+test('comet program overrides only the RGB channels, full brightness at phase 0 fading to dark, unlike squareDimmer\'s hard snap', () => {
+  const at = (phase, params) => EFFECT_PROGRAMS.comet.tick(asteraHeliosProfile7, phase, params)
+  const offsets = at(0, { hue: 0, blankSpace: 70 })
+    .map((o) => o.offset)
+    .sort()
+  assert.deepEqual(offsets, [0, 1, 2]) // red, green, blue offsets on profile 7
+
+  // hue 0 (red) at phase 0 (the comet's leading edge) -> full brightness, pure red
+  const head = at(0, { hue: 0, blankSpace: 70 })
+  assert.deepEqual(hueOverrideRgb(head), { r: 255, g: 0, b: 0 })
+})
+
+test('comet fades linearly from full brightness at phase 0 to dark at cometWidth, then stays dark', () => {
+  const redAt = (phase, params) => EFFECT_PROGRAMS.comet.tick(asteraHeliosProfile7, phase, params).find((o) => o.offset === 0).value
+
+  // blankSpace=70 -> cometWidth=0.3 (the comet occupies the first 30% of the cycle)
+  assert.equal(redAt(0, { hue: 0, blankSpace: 70 }), 255) // leading edge: full brightness
+  assert.ok(
+    redAt(0.15, { hue: 0, blankSpace: 70 }) > 0 && redAt(0.15, { hue: 0, blankSpace: 70 }) < 255,
+    'midway through the fade must be strictly between dark and full brightness, not a hard snap',
+  )
+  assert.equal(redAt(0.3, { hue: 0, blankSpace: 70 }), 0) // just past the comet's width -> dark
+  assert.equal(redAt(0.9, { hue: 0, blankSpace: 70 }), 0) // still dark, right up to wraparound
+
+  // the fade must be a straight line: brightness at 0.15 (half of cometWidth=0.3) is
+  // ~half the brightness at phase 0 (255), not curved like sineDimmer's cosine breath
+  const half = redAt(0.15, { hue: 0, blankSpace: 70 })
+  assert.ok(Math.abs(half - 128) <= 2, `expected ~half brightness at the fade's midpoint, got ${half}`)
+})
+
+test('comet blankSpace=99 (the max allowed) still produces a nonzero-width, visible comet', () => {
+  const at = (phase) => EFFECT_PROGRAMS.comet.tick(asteraHeliosProfile7, phase, { hue: 0, blankSpace: 99 }).find((o) => o.offset === 0).value
+  assert.equal(at(0), 255) // still full brightness right at the leading edge
+  assert.equal(at(0.02), 0) // and still fades out somewhere before the 1%-wide comet ends
+})
+
+test('comet respects the hue param — a different hue produces a different color at the same brightness', () => {
+  const at = (hue) => EFFECT_PROGRAMS.comet.tick(asteraHeliosProfile7, 0, { hue, blankSpace: 70 })
+  assert.deepEqual(hueOverrideRgb(at(0)), { r: 255, g: 0, b: 0 }) // red
+  assert.deepEqual(hueOverrideRgb(at(120)), { r: 0, g: 255, b: 0 }) // green
+  assert.deepEqual(hueOverrideRgb(at(240)), { r: 0, g: 0, b: 255 }) // blue
+})
+
+function hueOverrideRgb(overrides) {
+  return {
+    r: overrides.find((o) => o.offset === 0).value,
+    g: overrides.find((o) => o.offset === 1).value,
+    b: overrides.find((o) => o.offset === 2).value,
+  }
+}
+
 function fakeInstance() {
   const calls = []
   return {

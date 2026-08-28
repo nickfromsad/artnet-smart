@@ -330,12 +330,13 @@ function effectStartFields(profile, { includePhaseSpread }) {
 
   // Only fixtures with multiple repeated pixels (e.g. Astera Helios Profile 80) get
   // this — same idea as Phase Spread above, but rippling across one fixture's own
-  // pixels instead of across separate fixtures. Applies on both Start Effect and Start
-  // Chase (a chase's fixtures can each ripple internally too), unlike Reverse
-  // Direction/Random Order above which only make sense once there's a line of multiple
-  // physical fixtures to reorder.
+  // pixels instead of across separate fixtures. Start Effect only: on a Chase this is
+  // derived automatically from Phase Spread and the fixture count (see
+  // buildChaseStartAction) so the cross-fixture sweep and each fixture's own pixel
+  // ripple form one continuous flattened wave — showing this field there too would
+  // just be silently overridden.
   const pixels = pixelCount(profile)
-  if (pixels > 1) {
+  if (pixels > 1 && !includePhaseSpread) {
     fields.push({
       id: 'pixelPhaseSpread',
       type: 'number',
@@ -416,6 +417,32 @@ function effectStartFields(profile, { includePhaseSpread }) {
     })
   }
 
+  if (programs.some((p) => p.id === 'comet')) {
+    fields.push({
+      id: 'cometHue',
+      type: 'number',
+      label: 'Comet Color (Hue)',
+      min: 0,
+      max: 360,
+      default: 200,
+      step: 1,
+      range: true,
+      isVisibleExpression: "$(options:program) == 'comet'",
+    })
+    fields.push({
+      id: 'cometBlankSpace',
+      type: 'number',
+      label: 'Blank Space (% of the cycle fully dark between passes)',
+      min: 0,
+      // never 100 — that would leave the comet permanently invisible (zero width)
+      max: 99,
+      default: 70,
+      step: 1,
+      range: true,
+      isVisibleExpression: "$(options:program) == 'comet'",
+    })
+  }
+
   return fields
 }
 
@@ -479,6 +506,10 @@ function effectParams(profile, options) {
     params.min = Number(options.dimmerMin)
     params.max = Number(options.dimmerMax)
     if (program.id === 'squareDimmer') params.dutyCycle = Number(options.dutyCycle ?? 50)
+  }
+  if (program?.id === 'comet') {
+    params.hue = Number(options.cometHue ?? 200)
+    params.blankSpace = Number(options.cometBlankSpace ?? 70)
   }
   return params
 }
@@ -565,6 +596,18 @@ function buildChaseStartAction(instance, profile) {
         stopAllPrograms(instance, `${profile.id}_f${i}`)
       }
 
+      // negative phaseSpread reverses which direction the sweep travels — the engine's
+      // phase math already wraps negative offsets correctly, no engine changes needed
+      const phaseSpread = Number(options.phaseSpread ?? 1) * (options.reverseDirection ? -1 : 1)
+
+      const params = effectParams(profile, options)
+      // Flatten "fixtures x their own pixels" into one continuous line: dividing the
+      // same Phase Spread by how many fixtures are in this chase gives each fixture's
+      // own pixels exactly the right slice of the cycle to continue where the previous
+      // fixture's last pixel left off, instead of each fixture separately re-rippling
+      // through its own full cycle. See HANDOFF.md for the derivation.
+      if (pixelCount(profile) > 1) params.pixelPhaseSpread = phaseSpread / fixtureIndices.length
+
       // shuffling itself (including reshuffling every lap when Random Order is on)
       // is the engine's job, not this callback's — it needs to keep reshuffling for as
       // long as the effect keeps running, well after this callback has returned
@@ -573,13 +616,11 @@ function buildChaseStartAction(instance, profile) {
         program,
         fixtureIndices,
         periodSeconds: Number(options.periodSeconds),
-        // negative phaseSpread reverses which direction the sweep travels — the engine's
-        // phase math already wraps negative offsets correctly, no engine changes needed
-        phaseSpread: Number(options.phaseSpread ?? 1) * (options.reverseDirection ? -1 : 1),
+        phaseSpread,
         randomOrder: !!options.randomOrder,
         followBpm: !!options.followBpm,
         beatsPerCycle: Number(options.beatsPerCycle ?? 1),
-        params: effectParams(profile, options),
+        params,
       })
     },
   }
