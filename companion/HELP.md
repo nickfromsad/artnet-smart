@@ -98,8 +98,8 @@ each fixture only gets actions/presets under its own profile:
   still shows just one Color/CCT/Dimmer/Index Color/Strobe field, same as Profile 7/14 —
   every value fans out to all 4 pixels together, so the fixture behaves as one unit
   rather than needing 4 near-identical blocks of fields. Rainbow/Sine Breathing/Hard
-  Blink/Comet effects (and Chase) can either pulse all 4 pixels in sync or ripple across
-  them — see **Pixel Phase Spread** under Effects below.
+  Blink effects (and Chase) can either pulse all 4 pixels in sync or ripple across them
+  — see **Pixel Phase Spread** under Effects below.
 - **Lupo Dayled — CCT** (2 channels, 8-bit: ch1 Dimmer, ch2 Color Temperature). No RGB —
   CCT is this fixture's only color control, so unlike the Astera profiles it's always
   directly applied (no "enable" checkbox, no falling back to a color it doesn't have).
@@ -117,7 +117,7 @@ one go — there's currently no action that touches only some channels (e.g. fla
 strobe without changing color/dimmer). If you need that, ask for granular per-channel
 actions to be added back for the fixtures where it matters.
 
-## Effects: Rainbow, Sine Breathing Dimmer, Hard On/Off Blink, Comet, and Chase
+## Effects: Rainbow, Sine Breathing Dimmer, Hard On/Off Blink, and Chase
 
 A preset button fires once and stops — it can't animate anything by itself. For an
 actual moving effect (color continuously cycling, dimmer smoothly pulsing or hard
@@ -125,7 +125,7 @@ blinking, a color/brightness wave rolling down a line of fixtures), the module r
 small internal timer (~25 updates/sec) that keeps re-sending updated DMX until you stop
 it.
 
-Four effect types are built in:
+Three effect types are built in:
 
 - **Color Rainbow** — RGB continuously cycles through the color wheel. Only touches
   Red/Green/Blue; a **Dimmer while running (%)** field is sent once at start so the
@@ -142,17 +142,8 @@ Four effect types are built in:
     Phase Spread at 1, On Time 70% means roughly 70% of the fixtures are lit and 30%
     dark at any given instant (not just 70% of each fixture's own time), since the
     per-fixture time offset and the spatial position are the same thing here.
-- **Comet** — a bright leading edge that fades smoothly to black, then stays dark for
-  the rest of the cycle, unlike Hard On/Off Blink's instant snap. Touches Red/Green/
-  Blue (same one-shot Dimmer baseline as Rainbow). Two fields, both rendered as
-  draggable sliders rather than typed numbers: **Comet Color (Hue)** (0-360°) picks a
-  single custom color, and **Blank Space (%)** (0-99) sets how much of the cycle is
-  fully dark between passes — the comet itself occupies the rest, e.g. 70% blank space
-  means a comet spanning the remaining 30% of the cycle, fading out over that whole
-  span. As a Chase or on a multi-pixel fixture, the comet's head and fading tail sweep
-  across the pixels/fixtures exactly like the other effects (see Phase Spread below).
 
-All four are available per fixture and as a **Chase** across every patched fixture of a
+Both are available per fixture and as a **Chase** across every patched fixture of a
 profile at once:
 
 - **`<fixtureName>` — Start Effect / Stop Effect** — runs on one fixture. Starting a new
@@ -211,12 +202,11 @@ Every Start Effect / Start Chase now resets CCT to off as part of its one-shot b
 so this can't happen — no extra step needed on your part.
 
 Presets exist for all of this (per fixture: Start Rainbow / Start Sine Breathing /
-Start Hard Blink / Start Comet / Stop Effect; per profile, in a `<Profile> — Chase`
-category: Start Rainbow Chase / Start Breathing Chase / Start Random Breathing Chase /
-Start Hard Blink Chase / Start Random Blink Chase / Start Comet Chase / Stop Chase)
-with sensible defaults (4 second cycle, full range, 50% on time, icy-blue comet with
-70% blank space) — drag one on, then tweak Speed/Phase Spread/Min-Max/On Time/Comet
-Color/Blank Space/Random Order to taste.
+Start Hard Blink / Stop Effect; per profile, in a `<Profile> — Chase` category: Start
+Rainbow Chase / Start Breathing Chase / Start Random Breathing Chase / Start Hard Blink
+Chase / Start Random Blink Chase / Stop Chase) with sensible defaults (4 second cycle,
+full range, 50% on time) — drag one on, then tweak Speed/Phase Spread/Min-Max/On
+Time/Random Order to taste.
 
 ### Tap Tempo
 

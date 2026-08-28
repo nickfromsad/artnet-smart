@@ -81,7 +81,7 @@ src/fixtures/               Fixture profile DATA — the extension point. Add a 
   generic-dimmer.js           Single Dimmer channel only.
 
 src/effects/                 Internal ~25Hz tick engine.
-  programs.js                  Pure per-tick math. EFFECT_PROGRAMS.rainbow/.comet
+  programs.js                  Pure per-tick math. EFFECT_PROGRAMS.rainbow
                                (touches:'rgb', needs hasRgb), .sineDimmer/.squareDimmer
                                (touches:'dimmer', needs a dimmer channel). hsvToRgb and
                                the pixelPhase() per-pixel-spread helper live here too.
@@ -176,19 +176,6 @@ see the Astera profiles for the shape).
     silently zero out that one fixture's own pixel ripple, a regression. Reverse
     Direction and Random Order both keep working unchanged (sign flows through the
     division; shuffling only changes which fixture sits at position `i`).
-11. **Comet is a 4th `EFFECT_PROGRAMS` entry** (`touches:'rgb'`, same `supports`gate as
-    Rainbow): a bright leading edge (`hue` param, single custom color via the existing
-    `hsvToRgb`) fading linearly to black by `cometWidth = 1 - blankSpace/100` of the
-    cycle, then flat dark until the wrap — distinct from Hard On/Off Blink's instant
-    snap. Reuses `pixelPhase()` exactly like the other 3 programs, so it inherits rules
-    9/10's wave-flattening for free with zero extra code. Its two new fields
-    (`cometHue` 0-360, `cometBlankSpace` 0-99) are the first to use Companion's
-    `range: true` number-field option (renders as a slider) — added because the user
-    explicitly wanted these as sliders, not typed numbers; confirmed supported in the
-    pinned `@companion-module/base@1.14.1`'s type declarations, no dependency change
-    needed. `cometBlankSpace` is capped at 99, not 100: at 100 the comet has zero width
-    and is permanently invisible — mirrors `squareDimmer`'s existing `dutyCycle`
-    `min:1,max:99` guard against the same class of degenerate always-off state.
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -206,13 +193,13 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 117 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 112 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
-program math + BPM live-follow + Comet's fade shape), `effects-actions.test.js`
-(action-layer wiring for effects), `tap-tempo.test.js`, `multi-pixel.test.js` (Profile
-80's fan-out: one field writes every pixel's channel, Strobe stays single, effects
-animate all pixels in sync; Pixel Phase Spread ripples them out of sync on request and
+program math + BPM live-follow), `effects-actions.test.js` (action-layer wiring for
+effects), `tap-tempo.test.js`, `multi-pixel.test.js` (Profile 80's fan-out: one field
+writes every pixel's channel, Strobe stays single, effects animate all pixels in sync;
+Pixel Phase Spread ripples them out of sync on request and
 is a no-op at 0 or on single-pixel profiles; Chase auto-derives its per-fixture pixel
 spread from Phase Spread/fixtureCount, including an end-to-end `EffectsEngine` test
 proving 2 chased Profile 80 fixtures form one continuous 8-position wave, not two
@@ -244,17 +231,18 @@ calling it done.
   within one fixture. Would need the engine to track a per-effect pixel shuffle state,
   separate from the existing per-effect fixture shuffle; not built since it wasn't
   asked for.
-- Comet is single-color per run (one `hue` field) — no gradient/rainbow-tinted comet,
-  and no separate "trailing tail length vs. solid head length" split (the whole
-  `cometWidth` fades linearly from full brightness at the leading edge, no flat-bright
-  head segment before the fade starts). Revisit if asked for a more elaborate shape.
+- A "Comet" effect (bright leading edge fading to black, distinct from Hard On/Off
+  Blink's instant snap) was built, then explicitly reverted at the user's request — they
+  wanted the existing effects' Chase behavior (rule 10) rather than a new effect type.
+  Not present in the codebase; revisit from scratch if ever actually wanted again, don't
+  assume the reverted implementation is still relevant.
 - The user's exact Companion version was never confirmed; `1.14.1` was chosen for broad
   compatibility, not because a specific version was stated. If something in the module
   API breaks against their real Companion instance, that's the first thing to check.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 117 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 112 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.

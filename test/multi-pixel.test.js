@@ -199,18 +199,6 @@ test('pixelPhaseSpread has no effect on single-pixel profiles (only one pixel to
 })
 
 /**
- * Comet: a bright leading edge fading linearly to dark, distinct from Hard On/Off
- * Blink's hard snap. Reuses the same pixelPhaseSpread plumbing as the other 3
- * programs, so it inherits the wave-flattening below for free.
- */
-
-test('Comet with pixelPhaseSpread=1: brightness differs across the 4 pixels, not identical', () => {
-  const overrides = EFFECT_PROGRAMS.comet.tick(asteraHeliosProfile80, 0.1, { hue: 0, blankSpace: 0, pixelPhaseSpread: 1 })
-  const reds = PIXEL_STARTS.map((start) => overrides.find((o) => o.offset === start).value)
-  assert.ok(new Set(reds).size > 1, `expected differing brightness across pixels, got ${reds}`)
-})
-
-/**
  * Chase across multiple Profile 80 fixtures: Phase Spread now automatically flattens
  * "fixtures x their own pixels" into one continuous line (see HANDOFF.md for the
  * derivation) — the standalone Pixel Phase Spread field only exists on Start Effect;

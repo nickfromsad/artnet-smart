@@ -106,31 +106,4 @@ export const EFFECT_PROGRAMS = {
       })
     },
   },
-  comet: {
-    id: 'comet',
-    label: 'Comet',
-    touches: 'rgb',
-    supports: (profile) => hasRgb(profile),
-    tick: (profile, phase, params = {}) => {
-      const hue = Number(params.hue ?? 0)
-      // how much of the cycle the bright comet (head + fading tail) occupies; the rest
-      // is fully dark. blankSpace is expected to stay < 100 (see the Comet Blank Space
-      // field's max in actions.js) so cometWidth never hits exactly 0.
-      const cometWidth = 1 - clampPercent(params.blankSpace ?? 70) / 100
-      const spread = params.pixelPhaseSpread ?? 0
-      const groups = rgbGroups(profile)
-      const overrides = []
-      groups.forEach((group, i) => {
-        const p = pixelPhase(phase, i, groups.length, spread)
-        // full brightness at the comet's leading edge (p=0), fading linearly to 0 by
-        // p=cometWidth, then flat dark for the rest of the cycle until it wraps
-        const brightness = cometWidth > 0 && p < cometWidth ? 1 - p / cometWidth : 0
-        const { r, g, b } = hsvToRgb(hue, 1, brightness)
-        overrides.push({ offset: group.red.offset, value: r })
-        overrides.push({ offset: group.green.offset, value: g })
-        overrides.push({ offset: group.blue.offset, value: b })
-      })
-      return overrides
-    },
-  },
 }

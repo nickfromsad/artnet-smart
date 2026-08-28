@@ -417,32 +417,6 @@ function effectStartFields(profile, { includePhaseSpread }) {
     })
   }
 
-  if (programs.some((p) => p.id === 'comet')) {
-    fields.push({
-      id: 'cometHue',
-      type: 'number',
-      label: 'Comet Color (Hue)',
-      min: 0,
-      max: 360,
-      default: 200,
-      step: 1,
-      range: true,
-      isVisibleExpression: "$(options:program) == 'comet'",
-    })
-    fields.push({
-      id: 'cometBlankSpace',
-      type: 'number',
-      label: 'Blank Space (% of the cycle fully dark between passes)',
-      min: 0,
-      // never 100 — that would leave the comet permanently invisible (zero width)
-      max: 99,
-      default: 70,
-      step: 1,
-      range: true,
-      isVisibleExpression: "$(options:program) == 'comet'",
-    })
-  }
-
   return fields
 }
 
@@ -506,10 +480,6 @@ function effectParams(profile, options) {
     params.min = Number(options.dimmerMin)
     params.max = Number(options.dimmerMax)
     if (program.id === 'squareDimmer') params.dutyCycle = Number(options.dutyCycle ?? 50)
-  }
-  if (program?.id === 'comet') {
-    params.hue = Number(options.cometHue ?? 200)
-    params.blankSpace = Number(options.cometBlankSpace ?? 70)
   }
   return params
 }
