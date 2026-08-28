@@ -206,7 +206,9 @@ test('zero fixtures configured at all leaves only the fixture-independent fallba
   const presets = buildPresetDefinitions(instance, fixtureRegistry)
 
   assert.deepEqual(Object.keys(actions).sort(), ['raw_set_channel', 'stop_all_effects', 'tap_tempo'])
-  assert.deepEqual(Object.keys(presets).sort(), ['stop_all_effects', 'tap_tempo'])
+  // scene_blackout always survives too — it's the panic-button scene, exempt from the
+  // "skip if nothing to act on" rule the other Scenes presets follow (src/scenes.js)
+  assert.deepEqual(Object.keys(presets).sort(), ['scene_blackout', 'stop_all_effects', 'tap_tempo'])
 })
 
 test('presets are generated per patched fixture, plus one Manual and one Chase set for profiles actually in use — nothing for unused profiles', () => {
@@ -215,8 +217,10 @@ test('presets are generated per patched fixture, plus one Manual and one Chase s
   const categories = new Set(Object.values(presets).map((p) => p.category))
 
   // 8 profile7 fixtures + profile7's All + Manual + Chase + the global "Effects"
-  // category. Profile 14 contributes nothing since no fixture is patched as it.
-  assert.equal(categories.size, 8 + 3 + 1)
+  // category + "Scenes" (only scene_blackout survives, since none of Scenes' other
+  // fixture groups — dual-white-dimmer/lupo-dayled-cct/astera-helios-profile80 — are
+  // patched here). Profile 14 contributes nothing since no fixture is patched as it.
+  assert.equal(categories.size, 8 + 3 + 1 + 1)
   assert.ok(![...categories].some((c) => c.includes('Profile 14')), 'an unused profile must not appear in the presets panel at all')
 
   for (const preset of Object.values(presets)) {

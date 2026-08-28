@@ -107,6 +107,12 @@ each fixture only gets actions/presets under its own profile:
   Astera profiles, per the fixture's own chart.
 - **Generic Dimmer** (1 channel: Dimmer only) — for anything whose only DMX control is a
   single intensity channel (a dimmer pack, a simple LED fixture, etc).
+- **Dual White Dimmer (CW/WW)** (2 channels: Cold White, Warm White) — for a fixture
+  wired as two independent raw white channels rather than one Dimmer + one CCT value
+  (e.g. an architectural wash bar with separate cold/warm circuits). No Dimmer, CCT, or
+  RGB channel, so it doesn't get its own Full Red/White/Blackout preset buttons or any
+  effects — only the Set Full State action (per fixture, All, Manual). Meant to be driven
+  from a **Scene** button (see below) alongside your other fixtures, not standalone.
 
 Any fixture with a Dimmer channel gets Sine Breathing and Hard On/Off Blink effects
 (and Chase) automatically, even without RGB — Rainbow only shows up as an option for
@@ -273,6 +279,30 @@ falls back to whatever's in the Speed field.
 `beat_seconds` (`60 / bpm`) — usable anywhere Companion accepts an expression, e.g. to
 show a live BPM readout on a button's text (`$(<your connection's name>:bpm) BPM`), or
 to drive something outside this module's own Follow BPM checkbox.
+
+## Scenes
+
+For a rig with several *different* fixture types — e.g. dual-white wash bars, CCT
+backlight spots, and Astera pixel-tubes — the presets panel also gets a **Scenes**
+category: a handful of ready-made buttons that each fire multiple fixture groups at once
+with a single press, so someone running the show doesn't need to press a separate button
+per fixture type. Unlike every other preset, a Scene button's actions aren't editable as
+one action — it's several actions bundled onto one button's press (Companion supports
+this natively); to change what a Scene does, edit its action list on the button itself,
+same as you would combine any other actions manually.
+
+Built in: **Warm Chill** (low warm wash + dim warm backlight + a slow ambient two-color
+glow on the Asteras), **Color Chase** (dimmers low, spots off, a traveling rainbow band
+on the Asteras), **Two-Color Sweep** (same base, a two-color traveling wave instead of
+the full rainbow), **Party Blink** (bright wash + a soft-edged, tap-tempo-able hard blink
+chase), and **Blackout / Stop All** (stops every effect and zeros every channel across
+every patched fixture — a panic button, always available even before you've patched
+anything, unlike the other Scenes).
+
+A Scene only touches the fixture groups you've actually patched — if you haven't patched
+any Astera fixtures yet, a Scene simply skips that step rather than erroring, and if a
+Scene would end up doing nothing at all (none of its fixture groups patched), it doesn't
+appear in the presets panel until you patch at least one of them.
 
 ## Presets
 

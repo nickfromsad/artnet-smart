@@ -3,6 +3,7 @@ import { asteraHeliosProfile14 } from './astera-helios-profile14.js'
 import { asteraHeliosProfile80 } from './astera-helios-profile80.js'
 import { lupoDayledCct } from './lupo-dayled-cct.js'
 import { genericDimmer } from './generic-dimmer.js'
+import { dualWhiteDimmer } from './dual-white-dimmer.js'
 
 /**
  * All known fixture profiles. To add a new fixture: copy the simplest existing
@@ -19,4 +20,5 @@ export const fixtureRegistry = [
   asteraHeliosProfile80,
   lupoDayledCct,
   genericDimmer,
+  dualWhiteDimmer,
 ]

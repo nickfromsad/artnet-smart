@@ -79,6 +79,9 @@ src/fixtures/               Fixture profile DATA — the extension point. Add a 
   lupo-dayled-cct.js          Dimmer + CCT (overridesRgb:false, inverted linear:
                                raw 0=6500K .. raw 255=2700K). No RGB.
   generic-dimmer.js           Single Dimmer channel only.
+  dual-white-dimmer.js         Two independent raw channels (Cold White + Warm White),
+                               no Dimmer/CCT abstraction, no RGB. Deliberately contributes
+                               zero standalone presets (see rule 16) — Scene-only.
 
 src/effects/                 Internal ~25Hz tick engine.
   programs.js                  Pure per-tick math. EFFECT_PROGRAMS.rainbow
@@ -103,7 +106,13 @@ src/actions.js               Biggest file. Builds ALL Companion actions from
 
 src/presets.js                Mirrors actions.js's generation to build ready-made
                               preset buttons, only for profiles with >=1 patched
-                              fixture (no clutter from unused profiles).
+                              fixture (no clutter from unused profiles). Also exports
+                              multiActionPreset/effectStartOptions/stateOptions/
+                              isProfilePatched for scenes.js to reuse.
+
+src/scenes.js                 "Scene" presets — one button press firing several
+                              profiles' actions at once (Start Chase + Set Full State
+                              (All) across dimmers/spots/Asteras). See rule 16.
 ```
 
 Channel `type`s a fixture profile can use: `value8` (plain 0-255), `percent8` (shown as
@@ -263,6 +272,26 @@ see the Astera profiles for the shape).
     14's `blankSpace`. Gated to RGB fixtures only (`hasTwoColorWave = ... &&
     hasRgb(profile)`), computed once and reused everywhere so no expression ever
     references a field (`twoColorWave`) that doesn't exist on non-RGB profiles.
+16. **"Scene" presets (`src/scenes.js`) are curated multi-action buttons, not a general
+    macro system.** User's rig has 3 fixture groups (dual-white wash bars, CCT backlight
+    spots, Astera pixel-tubes) that a DJ wants to drive together with one press. Rather
+    than building new engine/preset machinery, this reuses what already existed:
+    `${profile.id}_start_chase`/`${profile.id}_all_set_state` already resolve their
+    fixture targets **at call time** from the patch list (`patchedFixtureIndices` in
+    actions.js), so a scene just needs to name the right action id + options per
+    profile — no fixture-index wiring in the preset itself. The only new mechanism is
+    `multiActionPreset` in presets.js (a `buttonPreset` sibling that accepts an array of
+    `{actionId, options}` instead of one) so a single button's `down` fires several
+    actions. Each scene step is dropped if its target profile has zero patched fixtures
+    (`isProfilePatched`, exported from presets.js); if a whole scene's steps all drop,
+    the scene itself is omitted — don't show a dead button. **Exception: Blackout / Stop
+    All always appears**, even with nothing patched, since it leads with the existing
+    fixture-independent `stop_all_effects` action and doubles as a panic button (same
+    reasoning as the always-present bare `Stop All Effects`/`Tap Tempo` presets).
+    `dual-white-dimmer` (rule above) was added specifically to give the wash bars an
+    action to target — it has no CCT/RGB/`dimmer` key, so it deliberately gets zero
+    presets of its own from `buildFixturePresets`; it's Scene-only by design, not an
+    oversight — don't "fix" this by adding a fallback preset block unless asked.
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -280,7 +309,7 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 127 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 131 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
 program math + BPM live-follow + squareDimmer's Fade Width shape/clamping +
@@ -295,7 +324,11 @@ spread from Phase Spread/fixtureCount, including an end-to-end `EffectsEngine` t
 proving 2 chased Profile 80 fixtures form one continuous 8-position wave, not two
 independent ripples; Reverse Pixel Order end-to-end test comparing a reversed chase run
 against the forward run's per-fixture sequence reversed — see rule 11 in "Established
-rules" for why a weaker single-channel check would have missed a real bug here).
+rules" for why a weaker single-channel check would have missed a real bug here),
+`scenes.test.js` (dual-white-dimmer's generic Set Full State option shape; a scene with
+none of its profiles patched is omitted except Blackout; a scene with only some profiles
+patched still fires for the ones that are; every fixture group patched produces the
+expected multi-action `down` array in order).
 
 Manual verification pattern used throughout: ad-hoc `node -e "..."` smoke scripts run
 via Bash (not saved to the repo) that wire `buildActionDefinitions`/
@@ -333,7 +366,7 @@ calling it done.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 127 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 131 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.

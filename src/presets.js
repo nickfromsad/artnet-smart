@@ -11,13 +11,14 @@
 import { MAX_FIXTURES } from './config.js'
 import { hasRgb, pixelCount } from './fixtures/state.js'
 import { EFFECT_PROGRAMS } from './effects/programs.js'
+import { buildScenePresets } from './scenes.js'
 
 function supportedPrograms(profile) {
   return Object.values(EFFECT_PROGRAMS).filter((p) => p.supports(profile))
 }
 
 /** Base option values for a "Start Effect"/"Start Chase" action, matching the fields built in actions.js */
-function effectStartOptions(profile, programId, extra = {}) {
+export function effectStartOptions(profile, programId, extra = {}) {
   const options = { program: programId, periodSeconds: 4, followBpm: false, beatsPerCycle: 1 }
   const programs = supportedPrograms(profile)
   // sineDimmer also wants a Dimmer baseline when Two-Color Wave is on (it blends RGB
@@ -47,7 +48,7 @@ function effectStartOptions(profile, programId, extra = {}) {
 }
 
 /** Base option values for a "Set Full State" action, matching the fields built in actions.js */
-function stateOptions(profile) {
+export function stateOptions(profile) {
   const options = {}
   const cctChannel = profile.channels.find((c) => c.type === 'kelvin')
   const strobeChannel = profile.channels.find((c) => c.type === 'strobe')
@@ -75,7 +76,9 @@ function stateOptions(profile) {
   return options
 }
 
-function buttonPreset(name, text, bgcolor, actionId, optionOverrides, category) {
+/** Like buttonPreset, but fires a list of actions on one press — for Scene buttons that
+ *  need to drive several fixtures/profiles at once. */
+export function multiActionPreset(name, text, bgcolor, actions, category) {
   return {
     type: 'button',
     category,
@@ -88,12 +91,16 @@ function buttonPreset(name, text, bgcolor, actionId, optionOverrides, category) 
     },
     steps: [
       {
-        down: [{ actionId, options: optionOverrides }],
+        down: actions.map(({ actionId, options }) => ({ actionId, options })),
         up: [],
       },
     ],
     feedbacks: [],
   }
+}
+
+function buttonPreset(name, text, bgcolor, actionId, optionOverrides, category) {
+  return multiActionPreset(name, text, bgcolor, [{ actionId, options: optionOverrides }], category)
 }
 
 /** Builds the standard set of presets (Full Red/Green/Blue, whites, dimmer, blackout) for one action/fixture */
@@ -290,6 +297,17 @@ function buildChasePresets(profile) {
   return presets
 }
 
+/** Whether at least one fixture in the instance's patch list is this profile — the
+ *  same gate buildProfilePresets uses inline, factored out for scenes.js. */
+export function isProfilePatched(instance, profile) {
+  const count = Math.min(Number(instance.config?.fixtureCount ?? 0), MAX_FIXTURES)
+  for (let i = 1; i <= count; i++) {
+    const type = instance.config?.[`fixture${i}Type`]
+    if (!type || type === profile.id) return true
+  }
+  return false
+}
+
 function buildProfilePresets(instance, profile) {
   let presets = {}
   const count = Math.min(Number(instance.config?.fixtureCount ?? 0), MAX_FIXTURES)
@@ -351,7 +369,7 @@ function buildProfilePresets(instance, profile) {
  * @param {Array} registry fixtureRegistry
  */
 export function buildPresetDefinitions(instance, registry) {
-  let presets = {}
+  let presets = { ...buildScenePresets(instance, registry) }
   for (const profile of registry) {
     presets = { ...presets, ...buildProfilePresets(instance, profile) }
   }
