@@ -419,6 +419,21 @@ function effectStartFields(profile, { includePhaseSpread }) {
     })
   }
 
+  if (programs.some((p) => p.id === 'sineDimmer')) {
+    fields.push({
+      id: 'blankSpace',
+      type: 'number',
+      label:
+        'Blank Space (% of the cycle fully dark — the rest is the breath itself, so dragging this also shows how much stays lit)',
+      min: 0,
+      max: 99,
+      default: 0,
+      step: 1,
+      range: true,
+      isVisibleExpression: "$(options:program) == 'sineDimmer'",
+    })
+  }
+
   if (programs.some((p) => p.id === 'squareDimmer')) {
     fields.push({
       id: 'dutyCycle',
@@ -510,6 +525,9 @@ function effectParams(profile, options) {
     if (program.id === 'squareDimmer') {
       params.dutyCycle = Number(options.dutyCycle ?? 50)
       params.fadeWidth = Number(options.fadeWidth ?? 0)
+    }
+    if (program.id === 'sineDimmer') {
+      params.blankSpace = Number(options.blankSpace ?? 0)
     }
   }
   return params

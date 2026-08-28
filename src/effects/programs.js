@@ -110,12 +110,21 @@ export const EFFECT_PROGRAMS = {
       const max = clampPercent(params.max ?? 100)
       const spread = params.pixelPhaseSpread ?? 0
       const reverse = !!params.reversePixelOrder
+      // fraction of the cycle the breath itself occupies; the rest is flat dark ("Blank
+      // Space"). blankSpace=0 (the default) -> waveWidth=1 -> identical to the original
+      // always-breathing formula, since p/1 = p.
+      const waveWidth = 1 - clampPercent(params.blankSpace ?? 0) / 100
       const channels = findChannels(profile, 'dimmer')
       return channels.map((channel, i) => {
         const idx = pixelIndex(i, channels.length, reverse)
         const p = pixelPhase(phase, idx, channels.length, spread)
-        // starts at min (phase 0), peaks at max (phase 0.5), back to min (phase 1) — a smooth breath
-        const percent = min + (max - min) * (0.5 - 0.5 * Math.cos(p * 2 * Math.PI))
+        // starts at min (start of the breath), peaks at max (midway through it), back
+        // to min (end of the breath), then flat dark for the rest of the cycle — a
+        // compact breathing "hump" instead of a wave that never actually goes dark
+        const percent =
+          waveWidth > 0 && p < waveWidth
+            ? min + (max - min) * (0.5 - 0.5 * Math.cos((p / waveWidth) * 2 * Math.PI))
+            : min
         return { offset: channel.offset, value: Math.round((percent * 255) / 100) }
       })
     },

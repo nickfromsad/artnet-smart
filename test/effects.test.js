@@ -51,6 +51,34 @@ test('sineDimmer respects a narrower min/max range', () => {
   assert.equal(raw, Math.round((60 * 255) / 100))
 })
 
+test('sineDimmer Blank Space=0 is identical to no blank space at all (regression: must not change the existing default look)', () => {
+  const at = (phase, params) => EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile7, phase, params)[0].value
+  for (const phase of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99]) {
+    assert.equal(at(phase, { min: 0, max: 100, blankSpace: 0 }), at(phase, { min: 0, max: 100 }))
+  }
+})
+
+test('sineDimmer Blank Space compresses the breath into a shorter hump, leaving the rest of the cycle flat dark', () => {
+  const at = (phase, params) => EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile7, phase, params)[0].value
+  const params = { min: 0, max: 100, blankSpace: 50 } // the breath now only occupies the first half of the cycle
+
+  // the compressed breath still starts at min and peaks at max, just squeezed into [0, 0.5)
+  assert.equal(at(0, params), 0)
+  assert.equal(at(0.25, params), 255) // midpoint of the hump (0.5 of a 0-0.5 window) -> peak
+  assert.ok(at(0.4, params) > 0 && at(0.4, params) < 255, 'still fading back down within the hump')
+
+  // flat dark for the rest of the cycle, where the old formula would still be breathing
+  assert.equal(at(0.5, params), 0)
+  assert.equal(at(0.75, params), 0)
+  assert.equal(at(0.99, params), 0)
+})
+
+test('sineDimmer Blank Space=99 (the max allowed) still produces a nonzero-width, visible breath', () => {
+  const at = (phase) => EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile7, phase, { min: 0, max: 100, blankSpace: 99 })[0].value
+  assert.ok(at(0.005) > 0, 'somewhere inside the 1%-wide hump the breath must be audible/visible')
+  assert.equal(at(0.5), 0) // well outside the tiny hump -> dark
+})
+
 test('squareDimmer program overrides only the Dimmer channel, snapping hard between min and max (no fade)', () => {
   const at = (phase, params) => EFFECT_PROGRAMS.squareDimmer.tick(asteraHeliosProfile7, phase, params)[0]
   const dimmerOffset = asteraHeliosProfile7.channels.find((c) => c.key === 'dimmer').offset

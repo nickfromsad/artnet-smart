@@ -133,6 +133,14 @@ Three effect types are built in:
 - **Sine Breathing Dimmer** — Dimmer smoothly pulses between a Min% and Max%, fading in
   and out. Only touches Dimmer; a **Color while running** field is sent once at start
   (it doesn't otherwise touch RGB).
+  - **Blank Space (%)** (default `0` — breathes continuously the whole cycle, like
+    before): a slider (drag it and you're directly trading off how much of the cycle
+    breathes against how much stays dark — one control shows both). At `0` the breath
+    fills the entire cycle with no dark period at all; raise it and the breath
+    compresses into a shorter "hump" while the rest of the cycle goes flat dark. As a
+    Chase, this is what turns the breathing wave into an actual traveling wave —
+    a compact bright hump sweeping down the whole line of fixtures with genuinely dark
+    space around it, instead of every pixel always being at least partly lit.
 - **Hard On/Off Blink** — same idea as Sine Breathing, but no fade by default: Dimmer
   snaps straight from Max to Min and back, like a classic chase-light blink instead of a
   breath. Has an extra **On Time (%)** field (default 50%) controlling what fraction of
@@ -227,8 +235,9 @@ Presets exist for all of this (per fixture: Start Rainbow / Start Sine Breathing
 Start Hard Blink / Stop Effect; per profile, in a `<Profile> — Chase` category: Start
 Rainbow Chase / Start Breathing Chase / Start Random Breathing Chase / Start Hard Blink
 Chase / Start Random Blink Chase / Stop Chase) with sensible defaults (4 second cycle,
-full range, 50% on time, 0% fade width — hard edges, like before) — drag one on, then
-tweak Speed/Phase Spread/Min-Max/On Time/Fade Width/Random Order to taste.
+full range, 50% on time, 0% fade width/blank space — continuous, hard-edged, like
+before) — drag one on, then tweak Speed/Phase Spread/Min-Max/On Time/Fade Width/Blank
+Space/Random Order to taste.
 
 ### Tap Tempo
 

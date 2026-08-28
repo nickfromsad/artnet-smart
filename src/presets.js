@@ -30,6 +30,7 @@ function effectStartOptions(profile, programId, extra = {}) {
     options.dutyCycle = 50
     options.fadeWidth = 0
   }
+  if (programId === 'sineDimmer') options.blankSpace = 0
   // matches the Pixel Phase Spread field's own default (actions.js) — ripples across
   // this fixture's own pixels out of the box, rather than pulsing them all in
   // lockstep. Chase presets (extra.phaseSpread set) don't get this: Chase derives its

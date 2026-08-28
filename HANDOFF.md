@@ -211,6 +211,19 @@ see the Astera profiles for the shape).
     against the pre-existing (no-fade) code path. Composes for free with Pixel Phase
     Spread/Reverse Pixel Order/Chase flattening, same as the other programs, since it's
     just a different per-pixel value function fed the same already-spread `phase`.
+13. **Sine Breathing got the same "Blank Space" treatment as Comet, again as a field on
+    the existing effect rather than a new one.** User wanted the Chase-driven breathing
+    wave to look like an actual traveling wave — a compact bright hump moving down the
+    line with genuinely dark space around it — instead of every pixel always being at
+    least partly lit (the old formula breathes across the *entire* cycle, so at any
+    instant every position in a Chase shows some nonzero brightness). `blankSpace`
+    (0-99%, `range: true` slider — the user explicitly wants sliders here, unlike the
+    Comet hue mixup) compresses the breath into `waveWidth = 1 - blankSpace/100` of the
+    cycle: `percent = p < waveWidth ? <breath formula on p/waveWidth> : min`.
+    `blankSpace=0` (default) makes `waveWidth=1`, so `p/waveWidth = p` — byte-identical
+    to the original always-breathing formula; confirmed by a regression test. Composes
+    for free with Pixel Phase Spread/Reverse Pixel Order/Chase flattening, same
+    mechanism as rule 12's Fade Width.
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -228,11 +241,12 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 119 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 122 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
-program math + BPM live-follow + squareDimmer's Fade Width shape/clamping),
-`effects-actions.test.js` (action-layer wiring for effects), `tap-tempo.test.js`,
+program math + BPM live-follow + squareDimmer's Fade Width shape/clamping +
+sineDimmer's Blank Space shape), `effects-actions.test.js` (action-layer wiring for
+effects), `tap-tempo.test.js`,
 `multi-pixel.test.js` (Profile 80's fan-out: one field
 writes every pixel's channel, Strobe stays single, effects animate all pixels in sync;
 Pixel Phase Spread ripples them out of sync on request and
@@ -279,7 +293,7 @@ calling it done.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 119 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 122 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.
