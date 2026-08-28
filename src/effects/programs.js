@@ -32,6 +32,22 @@ function clampPercent(value) {
   return Math.min(100, Math.max(0, value))
 }
 
+function wrapPhase(phase) {
+  return ((phase % 1) + 1) % 1
+}
+
+/**
+ * Phase for the i-th of n same-fixture "pixels", offset from the fixture's own base
+ * phase by `spread` — same formula src/effects/engine.js uses to spread phase across
+ * separate fixtures in a Chase, just applied within one fixture's repeated pixel
+ * channels instead. spread=0 (or n<=1) always returns basePhase unchanged, so this is a
+ * no-op for every single-pixel profile regardless of what params.pixelPhaseSpread is.
+ */
+function pixelPhase(basePhase, i, n, spread) {
+  const offsetFraction = n > 1 ? (i / n) * spread : 0
+  return wrapPhase(basePhase + offsetFraction)
+}
+
 export const EFFECT_PROGRAMS = {
   rainbow: {
     id: 'rainbow',
@@ -40,14 +56,16 @@ export const EFFECT_PROGRAMS = {
     // one-shot baseline field(s) (Dimmer, or Color) it needs to send once at start
     touches: 'rgb',
     supports: (profile) => hasRgb(profile),
-    tick: (profile, phase) => {
-      const { r, g, b } = hsvToRgb(phase * 360, 1, 1)
+    tick: (profile, phase, params = {}) => {
+      const spread = params.pixelPhaseSpread ?? 0
+      const groups = rgbGroups(profile)
       const overrides = []
-      for (const group of rgbGroups(profile)) {
+      groups.forEach((group, i) => {
+        const { r, g, b } = hsvToRgb(pixelPhase(phase, i, groups.length, spread) * 360, 1, 1)
         overrides.push({ offset: group.red.offset, value: r })
         overrides.push({ offset: group.green.offset, value: g })
         overrides.push({ offset: group.blue.offset, value: b })
-      }
+      })
       return overrides
     },
   },
@@ -59,10 +77,14 @@ export const EFFECT_PROGRAMS = {
     tick: (profile, phase, params = {}) => {
       const min = clampPercent(params.min ?? 0)
       const max = clampPercent(params.max ?? 100)
-      // starts at min (phase 0), peaks at max (phase 0.5), back to min (phase 1) — a smooth breath
-      const percent = min + (max - min) * (0.5 - 0.5 * Math.cos(phase * 2 * Math.PI))
-      const raw = Math.round((percent * 255) / 100)
-      return findChannels(profile, 'dimmer').map((channel) => ({ offset: channel.offset, value: raw }))
+      const spread = params.pixelPhaseSpread ?? 0
+      const channels = findChannels(profile, 'dimmer')
+      return channels.map((channel, i) => {
+        const p = pixelPhase(phase, i, channels.length, spread)
+        // starts at min (phase 0), peaks at max (phase 0.5), back to min (phase 1) — a smooth breath
+        const percent = min + (max - min) * (0.5 - 0.5 * Math.cos(p * 2 * Math.PI))
+        return { offset: channel.offset, value: Math.round((percent * 255) / 100) }
+      })
     },
   },
   squareDimmer: {
@@ -74,10 +96,14 @@ export const EFFECT_PROGRAMS = {
       const min = clampPercent(params.min ?? 0)
       const max = clampPercent(params.max ?? 100)
       const duty = clampPercent(params.dutyCycle ?? 50) / 100 // fraction of the cycle spent "on" (at max)
-      // no fade — snaps straight from max to min, unlike sineDimmer's smooth curve
-      const percent = phase < duty ? max : min
-      const raw = Math.round((percent * 255) / 100)
-      return findChannels(profile, 'dimmer').map((channel) => ({ offset: channel.offset, value: raw }))
+      const spread = params.pixelPhaseSpread ?? 0
+      const channels = findChannels(profile, 'dimmer')
+      return channels.map((channel, i) => {
+        const p = pixelPhase(phase, i, channels.length, spread)
+        // no fade — snaps straight from max to min, unlike sineDimmer's smooth curve
+        const percent = p < duty ? max : min
+        return { offset: channel.offset, value: Math.round((percent * 255) / 100) }
+      })
     },
   },
 }

@@ -27,6 +27,11 @@ export function rgbGroups(profile) {
   return reds.map((red, i) => ({ red, green: greens[i], blue: blues[i] }))
 }
 
+/** How many repeated "pixels" this fixture has (1 for every single-pixel profile) */
+export function pixelCount(profile) {
+  return Math.max(rgbGroups(profile).length, findChannels(profile, 'dimmer').length, 1)
+}
+
 /** Channels not covered by the combined RGB color field */
 export function otherChannels(profile) {
   const rgbKeys = new Set(hasRgb(profile) ? ['red', 'green', 'blue'] : [])

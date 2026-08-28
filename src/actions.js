@@ -13,7 +13,7 @@
  */
 
 import { MAX_FIXTURES } from './config.js'
-import { findChannels, hasRgb, rgbGroups, groupedOtherChannels, overridesToValues } from './fixtures/state.js'
+import { findChannels, hasRgb, rgbGroups, groupedOtherChannels, overridesToValues, pixelCount } from './fixtures/state.js'
 import { EFFECT_PROGRAMS } from './effects/programs.js'
 
 const STROBE_MODE_CHOICES = [
@@ -328,6 +328,25 @@ function effectStartFields(profile, { includePhaseSpread }) {
     })
   }
 
+  // Only fixtures with multiple repeated pixels (e.g. Astera Helios Profile 80) get
+  // this — same idea as Phase Spread above, but rippling across one fixture's own
+  // pixels instead of across separate fixtures. Applies on both Start Effect and Start
+  // Chase (a chase's fixtures can each ripple internally too), unlike Reverse
+  // Direction/Random Order above which only make sense once there's a line of multiple
+  // physical fixtures to reorder.
+  const pixels = pixelCount(profile)
+  if (pixels > 1) {
+    fields.push({
+      id: 'pixelPhaseSpread',
+      type: 'number',
+      label: `Pixel Phase Spread (0 = synced, 1 = one full cycle spread across this fixture's own ${pixels} pixels)`,
+      min: 0,
+      max: 4,
+      default: 1,
+      step: 0.1,
+    })
+  }
+
   // A program only ever touches one channel group (RGB or Dimmer) per tick — without a
   // one-shot baseline for the group it doesn't own, the fixture could end up looking
   // off (Dimmer stuck at 0) or black (RGB never set) while the effect runs.
@@ -452,14 +471,16 @@ function effectOneShotOverrides(profile, options) {
   return overrides
 }
 
-function effectParams(options) {
+function effectParams(profile, options) {
   const program = EFFECT_PROGRAMS[options.program]
+  const params = {}
+  if (pixelCount(profile) > 1) params.pixelPhaseSpread = Number(options.pixelPhaseSpread ?? 0)
   if (program?.touches === 'dimmer') {
-    const params = { min: Number(options.dimmerMin), max: Number(options.dimmerMax) }
+    params.min = Number(options.dimmerMin)
+    params.max = Number(options.dimmerMax)
     if (program.id === 'squareDimmer') params.dutyCycle = Number(options.dutyCycle ?? 50)
-    return params
   }
-  return {}
+  return params
 }
 
 /** Start Effect for one specific patched fixture — Universe/Start Channel baked in, like Set Full State */
@@ -490,7 +511,7 @@ function buildFixtureStartEffectAction(instance, profile, fixtureIndex, fixtureN
         periodSeconds: Number(options.periodSeconds),
         followBpm: !!options.followBpm,
         beatsPerCycle: Number(options.beatsPerCycle ?? 1),
-        params: effectParams(options),
+        params: effectParams(profile, options),
       })
     },
   }
@@ -558,7 +579,7 @@ function buildChaseStartAction(instance, profile) {
         randomOrder: !!options.randomOrder,
         followBpm: !!options.followBpm,
         beatsPerCycle: Number(options.beatsPerCycle ?? 1),
-        params: effectParams(options),
+        params: effectParams(profile, options),
       })
     },
   }

@@ -147,8 +147,20 @@ see the Astera profiles for the shape).
    (`actions.js`, `presets.js`, `effects/programs.js`). A single-pixel profile's groups
    are all length-1, so this was a behavior-preserving refactor for Profile 7/14/Lupo/
    Generic Dimmer — confirmed via the full test suite before Profile 80 was added.
-   Treating the 4 pixels as independently addressable (e.g. per-pixel Chase) was
-   explicitly decided against for now — see "Known gaps".
+9. **Pixel Phase Spread ripples an effect across one fixture's own pixels, the
+   within-fixture counterpart to Chase's cross-fixture Phase Spread.** Added after the
+   user asked for Sine Breathing to animate across a tube's own 4 pixels instead of
+   pulsing them all in lockstep. Lives entirely in `src/effects/programs.js`'s
+   `pixelPhase()` helper — each program's `tick()` now computes a per-pixel-index phase
+   offset (`spread=0`/single-pixel profile ⇒ always identical to the old behavior, so no
+   engine changes were needed: `engine.js` already just calls `program.tick(profile,
+   phase, params)` and merges whatever offsets come back). The field
+   (`pixelPhaseSpread`, `pixelCount(profile) > 1` gated) appears on **both** Start
+   Effect and Start Chase, unlike Reverse Direction/Random Order which are chase-only —
+   it composes with the fixture-level Phase Spread rather than replacing it. Defaults to
+   `1` (rippling), both on the field and in presets — deliberately not `0`, since a bare
+   "add the fixture" pass would otherwise leave Profile 80 pulsing in sync by default and
+   require an extra manual step to get the behavior the user actually asked for.
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -166,12 +178,14 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 100 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 107 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
 program math + BPM live-follow), `effects-actions.test.js` (action-layer wiring for
 effects), `tap-tempo.test.js`, `multi-pixel.test.js` (Profile 80's fan-out: one field
-writes every pixel's channel, Strobe stays single, effects animate all pixels in sync).
+writes every pixel's channel, Strobe stays single, effects animate all pixels in sync;
+Pixel Phase Spread ripples them out of sync on request and is a no-op at 0 or on
+single-pixel profiles).
 
 Manual verification pattern used throughout: ad-hoc `node -e "..."` smoke scripts run
 via Bash (not saved to the repo) that wire `buildActionDefinitions`/
@@ -192,19 +206,17 @@ calling it done.
   after a chase starts won't join it.
 - A 3-channel Lupo Dayled variant (adds Strobe, per its own chart) was **not** built —
   only the 2-channel CCT mode was requested.
-- Profile 80's 4 pixels are treated as one synced unit everywhere (Set Full State,
-  Rainbow, Sine/Square Dimmer) — not as 4 independently-addressable targets. A per-pixel
-  Chase (each of the fixture's own pixels phase-offset from the others, like the
-  cross-fixture Chase does today) was explicitly not built; the user chose "synced" over
-  "pixel 1 only" / "static only" when asked, but per-pixel animation within one fixture
-  is a bigger, separate feature if ever wanted.
+- Profile 80's Pixel Phase Spread has no Reverse Direction/Random Order equivalent
+  (unlike the cross-fixture Chase, which has both) — it's just a spread amount. Adding
+  those would need the engine to track a per-effect pixel shuffle state, separate from
+  the existing per-effect fixture shuffle; not built since it wasn't asked for.
 - The user's exact Companion version was never confirmed; `1.14.1` was chosen for broad
   compatibility, not because a specific version was stated. If something in the module
   API breaks against their real Companion instance, that's the first thing to check.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 100 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 107 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.

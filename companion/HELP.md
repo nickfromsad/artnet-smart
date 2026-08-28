@@ -98,7 +98,8 @@ each fixture only gets actions/presets under its own profile:
   still shows just one Color/CCT/Dimmer/Index Color/Strobe field, same as Profile 7/14 —
   every value fans out to all 4 pixels together, so the fixture behaves as one unit
   rather than needing 4 near-identical blocks of fields. Rainbow/Sine Breathing/Hard
-  Blink effects (and Chase) animate all 4 pixels in sync the same way.
+  Blink effects (and Chase) can either pulse all 4 pixels in sync or ripple across them
+  — see **Pixel Phase Spread** under Effects below.
 - **Lupo Dayled — CCT** (2 channels, 8-bit: ch1 Dimmer, ch2 Color Temperature). No RGB —
   CCT is this fixture's only color control, so unlike the Astera profiles it's always
   directly applied (no "enable" checkbox, no falling back to a color it doesn't have).
@@ -176,6 +177,19 @@ Starting the same effect on the same target again (e.g. pressing "Start Rainbow"
 just restarts its phase from the beginning (and its shuffle sequence, if Random Order
 is on). Re-patching a fixture's Universe/Start Channel while an effect is running takes
 effect immediately, on the next tick.
+
+**Pixel Phase Spread** (Astera Helios Profile 80 only — anything with multiple
+individually-addressable pixels on one fixture): appears on both Start Effect and Start
+Chase, right alongside the other effect fields. `0` keeps all of that fixture's pixels
+perfectly in sync (the default before this existed); `1` spreads one full cycle evenly
+across its pixels, so e.g. Sine Breathing ripples down the tube's own 4 segments instead
+of pulsing them all together — same idea as the cross-fixture **Phase Spread** used by
+Chase, just applied within one fixture's own pixels instead of across separate
+fixtures. The two combine: a Chase with both Phase Spread and Pixel Phase Spread set
+ripples across the whole line of fixtures *and* across each fixture's own pixels at the
+same time. Defaults to `1` (rippling) on presets and the field itself, since that's
+almost always what you want out of a multi-pixel fixture — set it back to `0` if you
+want the classic "whole tube as one unit" look instead.
 
 **CCT gets reset automatically.** On these Astera fixtures, a non-zero CCT value
 overrides RGB in the fixture's own firmware, no matter what gets sent afterward — so if

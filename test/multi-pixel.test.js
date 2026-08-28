@@ -127,3 +127,72 @@ test('regression: starting an effect resets CCT to off on all 4 pixels, not just
     assert.equal(values[start + 3], 0, `pixel at offset ${start}: CCT must reset to off`)
   }
 })
+
+/**
+ * "Pixel Phase Spread" ripples an effect across one fixture's own repeated pixels
+ * (e.g. Sine Breathing sweeping down the 4 segments of one tube) instead of pulsing
+ * them all in perfect sync — the within-fixture counterpart to the existing chase-level
+ * Phase Spread, which ripples across separate physical fixtures.
+ */
+
+test('Pixel Phase Spread field only exists for multi-pixel profiles (Profile 80), not single-pixel ones (Profile 7)', () => {
+  const { instance } = fakeInstanceWithProfile80()
+  instance.config.fixture2Name = 'Tube 2'
+  instance.config.fixture2Type = 'astera-helios-profile7'
+  instance.config.fixture2Universe = 0
+  instance.config.fixture2Start = 30
+  instance.config.fixtureCount = 2
+  const actions = buildActionDefinitions(instance, fixtureRegistry)
+
+  assert.ok(actions['astera-helios-profile80_f1_start_effect'].options.some((o) => o.id === 'pixelPhaseSpread'))
+  assert.ok(!actions['astera-helios-profile7_f2_start_effect'].options.some((o) => o.id === 'pixelPhaseSpread'))
+})
+
+test('Pixel Phase Spread defaults to 1 (rippling), so the field exists ready to use without extra setup', () => {
+  const { instance } = fakeInstanceWithProfile80()
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_f1_start_effect']
+  const field = action.options.find((o) => o.id === 'pixelPhaseSpread')
+  assert.equal(field.default, 1)
+})
+
+test('Start Effect passes pixelPhaseSpread through to the engine as a program param', async () => {
+  const { instance, effectCalls } = fakeInstanceWithProfile80()
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_f1_start_effect']
+
+  await action.callback({ options: { program: 'sineDimmer', periodSeconds: 4, dimmerMin: 0, dimmerMax: 100, pixelPhaseSpread: 1 } })
+
+  const start = effectCalls.find((c) => c.type === 'start')
+  assert.equal(start.opts.params.pixelPhaseSpread, 1)
+})
+
+test('sineDimmer with pixelPhaseSpread=1: the 4 pixels are out of phase with each other, not identical', () => {
+  const overrides = EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile80, 0.1, { min: 0, max: 100, pixelPhaseSpread: 1 })
+  const values = PIXEL_STARTS.map((start) => overrides.find((o) => o.offset === start + 4).value)
+  assert.ok(new Set(values).size > 1, `expected pixels to differ at phase 0.1 with full spread, got ${values}`)
+})
+
+test('sineDimmer with pixelPhaseSpread=0: the 4 pixels stay perfectly in sync (same as before this feature existed)', () => {
+  const overrides = EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile80, 0.1, { min: 0, max: 100, pixelPhaseSpread: 0 })
+  const values = PIXEL_STARTS.map((start) => overrides.find((o) => o.offset === start + 4).value)
+  assert.ok(new Set(values).size === 1, `expected all 4 pixels identical with zero spread, got ${values}`)
+})
+
+test('rainbow with pixelPhaseSpread=1: each pixel shows a different hue, not the same color', () => {
+  const overrides = EFFECT_PROGRAMS.rainbow.tick(asteraHeliosProfile80, 0, { pixelPhaseSpread: 1 })
+  const reds = PIXEL_STARTS.map((start) => overrides.find((o) => o.offset === start).value)
+  assert.ok(new Set(reds).size > 1, `expected differing red values across pixels, got ${reds}`)
+})
+
+test('pixelPhaseSpread has no effect on single-pixel profiles (only one pixel to spread across)', () => {
+  const withSpread = EFFECT_PROGRAMS.sineDimmer.tick(fixtureRegistry.find((p) => p.id === 'astera-helios-profile7'), 0.1, {
+    min: 0,
+    max: 100,
+    pixelPhaseSpread: 1,
+  })
+  const withoutSpread = EFFECT_PROGRAMS.sineDimmer.tick(fixtureRegistry.find((p) => p.id === 'astera-helios-profile7'), 0.1, {
+    min: 0,
+    max: 100,
+    pixelPhaseSpread: 0,
+  })
+  assert.deepEqual(withSpread, withoutSpread)
+})

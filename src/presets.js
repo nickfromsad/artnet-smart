@@ -9,7 +9,7 @@
  */
 
 import { MAX_FIXTURES } from './config.js'
-import { hasRgb } from './fixtures/state.js'
+import { hasRgb, pixelCount } from './fixtures/state.js'
 import { EFFECT_PROGRAMS } from './effects/programs.js'
 
 function supportedPrograms(profile) {
@@ -27,6 +27,9 @@ function effectStartOptions(profile, programId, extra = {}) {
     options.dimmerMax = 100
   }
   if (programId === 'squareDimmer') options.dutyCycle = 50
+  // matches the Pixel Phase Spread field's own default (actions.js) — ripples across
+  // this fixture's own pixels out of the box, rather than pulsing them all in lockstep
+  if (pixelCount(profile) > 1) options.pixelPhaseSpread = 1
   return { ...options, ...extra }
 }
 
