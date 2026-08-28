@@ -88,11 +88,19 @@ export const EFFECT_PROGRAMS = {
     tick: (profile, phase, params = {}) => {
       const spread = params.pixelPhaseSpread ?? 0
       const reverse = !!params.reversePixelOrder
+      // fraction of the cycle the color wheel itself occupies; the rest is flat dark
+      // ("Blank Space"). blankSpace=0 (the default) -> waveWidth=1 -> identical to the
+      // original always-colored formula, since p/1 = p.
+      const waveWidth = 1 - clampPercent(params.blankSpace ?? 0) / 100
       const groups = rgbGroups(profile)
       const overrides = []
       groups.forEach((group, i) => {
         const idx = pixelIndex(i, groups.length, reverse)
-        const { r, g, b } = hsvToRgb(pixelPhase(phase, idx, groups.length, spread) * 360, 1, 1)
+        const p = pixelPhase(phase, idx, groups.length, spread)
+        // the full hue rotation compressed into [0, waveWidth), then black for the
+        // rest of the cycle — a compact color wave instead of a wheel that's always
+        // showing some color everywhere
+        const { r, g, b } = waveWidth > 0 && p < waveWidth ? hsvToRgb((p / waveWidth) * 360, 1, 1) : { r: 0, g: 0, b: 0 }
         overrides.push({ offset: group.red.offset, value: r })
         overrides.push({ offset: group.green.offset, value: g })
         overrides.push({ offset: group.blue.offset, value: b })

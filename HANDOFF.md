@@ -224,6 +224,21 @@ see the Astera profiles for the shape).
     to the original always-breathing formula; confirmed by a regression test. Composes
     for free with Pixel Phase Spread/Reverse Pixel Order/Chase flattening, same
     mechanism as rule 12's Fade Width.
+14. **Rainbow got the same `blankSpace` treatment as Sine Breathing (rule 13), and they
+    now share one field/id instead of each getting their own.** Rainbow's hue rotation
+    (`(p/waveWidth)*360` instead of `p*360`, black outside `[0, waveWidth)`) is the same
+    shape of fix as Sine Breathing's compressed breath — both "wrap one full cycle
+    across the pixels, compress into a shorter window, flat/black outside it." Since a
+    Companion action's `options` array is shared across every program in the dropdown
+    (not per-program) and Rainbow/Sine Breathing can never both be selected at once,
+    reusing the id `blankSpace` for both — gated by
+    `isVisibleExpression: "$(options:program) == 'rainbow' || $(options:program) == 'sineDimmer'"`
+    — is correct and avoids a field-proliferation smell; giving Rainbow its own
+    `rainbowBlankSpace` would've been redundant. `effectParams` sets `params.blankSpace`
+    once, keyed off `program.id` being either of the two, independent of `touches`
+    (Rainbow is `touches:'rgb'`, Sine Breathing is `touches:'dimmer'` — the shared field
+    lives outside both of those branches). If a 3rd program ever wants this shape, reuse
+    the same field/gate rather than adding a new one.
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -241,12 +256,12 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 122 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 124 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
 program math + BPM live-follow + squareDimmer's Fade Width shape/clamping +
-sineDimmer's Blank Space shape), `effects-actions.test.js` (action-layer wiring for
-effects), `tap-tempo.test.js`,
+sineDimmer's/rainbow's shared Blank Space shape), `effects-actions.test.js`
+(action-layer wiring for effects), `tap-tempo.test.js`,
 `multi-pixel.test.js` (Profile 80's fan-out: one field
 writes every pixel's channel, Strobe stays single, effects animate all pixels in sync;
 Pixel Phase Spread ripples them out of sync on request and
@@ -293,7 +308,7 @@ calling it done.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 122 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 124 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.

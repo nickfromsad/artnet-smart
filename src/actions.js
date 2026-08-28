@@ -419,18 +419,24 @@ function effectStartFields(profile, { includePhaseSpread }) {
     })
   }
 
-  if (programs.some((p) => p.id === 'sineDimmer')) {
+  // Shared by any program that "wraps" one full cycle across the pixels (Rainbow's
+  // color wheel, Sine Breathing's breath) — compresses that cycle into a shorter
+  // window so the rest goes flat dark, instead of every pixel always showing at least
+  // some color/brightness. One shared field/id: the two programs can't be selected at
+  // once, and the concept (and math) is identical either way.
+  const blankSpacePrograms = programs.filter((p) => p.id === 'rainbow' || p.id === 'sineDimmer')
+  if (blankSpacePrograms.length > 0) {
     fields.push({
       id: 'blankSpace',
       type: 'number',
       label:
-        'Blank Space (% of the cycle fully dark — the rest is the breath itself, so dragging this also shows how much stays lit)',
+        'Blank Space (% of the cycle fully dark — the rest is the effect itself, so dragging this also shows how much stays lit)',
       min: 0,
       max: 99,
       default: 0,
       step: 1,
       range: true,
-      isVisibleExpression: "$(options:program) == 'sineDimmer'",
+      isVisibleExpression: anyProgramExpression(blankSpacePrograms),
     })
   }
 
@@ -519,15 +525,15 @@ function effectParams(profile, options) {
     params.pixelPhaseSpread = Number(options.pixelPhaseSpread ?? 0)
     params.reversePixelOrder = !!options.reversePixelOrder
   }
+  if (program?.id === 'rainbow' || program?.id === 'sineDimmer') {
+    params.blankSpace = Number(options.blankSpace ?? 0)
+  }
   if (program?.touches === 'dimmer') {
     params.min = Number(options.dimmerMin)
     params.max = Number(options.dimmerMax)
     if (program.id === 'squareDimmer') {
       params.dutyCycle = Number(options.dutyCycle ?? 50)
       params.fadeWidth = Number(options.fadeWidth ?? 0)
-    }
-    if (program.id === 'sineDimmer') {
-      params.blankSpace = Number(options.blankSpace ?? 0)
     }
   }
   return params

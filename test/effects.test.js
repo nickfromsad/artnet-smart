@@ -35,6 +35,33 @@ test('rainbow program overrides only the RGB channels', () => {
   assert.equal(red.value, 255)
 })
 
+test('rainbow Blank Space=0 is identical to no blank space at all (regression: must not change the existing default look)', () => {
+  const rgbAt = (phase, params) => {
+    const o = EFFECT_PROGRAMS.rainbow.tick(asteraHeliosProfile7, phase, params)
+    return { r: o.find((c) => c.offset === 0).value, g: o.find((c) => c.offset === 1).value, b: o.find((c) => c.offset === 2).value }
+  }
+  for (const phase of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99]) {
+    assert.deepEqual(rgbAt(phase, { blankSpace: 0 }), rgbAt(phase, {}))
+  }
+})
+
+test('rainbow Blank Space compresses the color wheel into a shorter hump, leaving the rest of the cycle black', () => {
+  const rgbAt = (phase, params) => {
+    const o = EFFECT_PROGRAMS.rainbow.tick(asteraHeliosProfile7, phase, params)
+    return { r: o.find((c) => c.offset === 0).value, g: o.find((c) => c.offset === 1).value, b: o.find((c) => c.offset === 2).value }
+  }
+  const params = { blankSpace: 50 } // the color wheel now only occupies the first half of the cycle
+
+  // the compressed wheel still starts at hue 0 (red) and runs a full rotation, just squeezed into [0, 0.5)
+  assert.deepEqual(rgbAt(0, params), { r: 255, g: 0, b: 0 })
+  assert.deepEqual(rgbAt(0.25, params), rgbAt(0.5, {})) // 0.25 of a 0-0.5 window = the same hue as phase 0.5 unscaled (green)
+
+  // flat black for the rest of the cycle, where the old formula would still show a color
+  assert.deepEqual(rgbAt(0.5, params), { r: 0, g: 0, b: 0 })
+  assert.deepEqual(rgbAt(0.75, params), { r: 0, g: 0, b: 0 })
+  assert.deepEqual(rgbAt(0.99, params), { r: 0, g: 0, b: 0 })
+})
+
 test('sineDimmer program overrides only the Dimmer channel, breathing between min and max', () => {
   const at = (phase) => EFFECT_PROGRAMS.sineDimmer.tick(asteraHeliosProfile7, phase, { min: 0, max: 100})[0]
 

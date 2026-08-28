@@ -133,14 +133,16 @@ Three effect types are built in:
 - **Sine Breathing Dimmer** — Dimmer smoothly pulses between a Min% and Max%, fading in
   and out. Only touches Dimmer; a **Color while running** field is sent once at start
   (it doesn't otherwise touch RGB).
-  - **Blank Space (%)** (default `0` — breathes continuously the whole cycle, like
-    before): a slider (drag it and you're directly trading off how much of the cycle
-    breathes against how much stays dark — one control shows both). At `0` the breath
-    fills the entire cycle with no dark period at all; raise it and the breath
-    compresses into a shorter "hump" while the rest of the cycle goes flat dark. As a
-    Chase, this is what turns the breathing wave into an actual traveling wave —
-    a compact bright hump sweeping down the whole line of fixtures with genuinely dark
-    space around it, instead of every pixel always being at least partly lit.
+
+Both Color Rainbow and Sine Breathing share a **Blank Space (%)** field (default `0` —
+runs continuously the whole cycle, like before): a slider (drag it and you're directly
+trading off how much of the cycle shows the effect against how much stays dark — one
+control shows both). At `0`, the color wheel/breath fills the entire cycle with no dark
+period at all; raise it and the effect compresses into a shorter "hump" while the rest
+of the cycle goes flat dark/black. As a Chase, this is what turns either effect into an
+actual traveling wave — a compact bright hump (rainbow-colored or breathing white/your
+chosen color) sweeping down the whole line of fixtures with genuinely dark space around
+it, instead of every pixel always showing at least some color or brightness.
 - **Hard On/Off Blink** — same idea as Sine Breathing, but no fade by default: Dimmer
   snaps straight from Max to Min and back, like a classic chase-light blink instead of a
   breath. Has an extra **On Time (%)** field (default 50%) controlling what fraction of
