@@ -176,6 +176,26 @@ see the Astera profiles for the shape).
     silently zero out that one fixture's own pixel ripple, a regression. Reverse
     Direction and Random Order both keep working unchanged (sign flows through the
     division; shuffling only changes which fixture sits at position `i`).
+11. **Reverse Pixel Order flips which pixel leads within a fixture — via an index
+    remap, NOT by negating `pixelPhaseSpread`'s sign.** Added after the user's rig
+    turned out to need the fixture-to-fixture sweep going one way while each fixture's
+    own pixel order needed to run the opposite way (physical mounting: pixel 1 isn't
+    on the same side as the next fixture's pixel 1). First attempt negated the sign of
+    `pixelPhaseSpread` — **wrong**: pixel 0 always sits at offset 0 regardless of
+    spread's sign (`(0/n)*spread = 0`), so negating just mirrors the other pixels
+    around pixel 0 instead of actually reversing the sequence; caught by a test that
+    compared the reversed run's per-fixture pixel sequence against the forward run's
+    sequence reversed; naive symmetric test data (Rainbow's red channel at 45°
+    intervals) initially masked this because `hsvToRgb`'s red channel happens to be
+    symmetric at those exact sample points — only checking the full RGB triple (or
+    non-symmetric sample points) exposed it. Correct fix: `pixelIndex(i, n, reverse)`
+    in `src/effects/programs.js` remaps which physical pixel gets which position index
+    (`reverse ? n-1-i : i`) *before* computing `pixelPhase()`, leaving
+    `pixelPhaseSpread`'s own sign/magnitude untouched. `params.reversePixelOrder`
+    (boolean) flows through `effectParams` unchanged for both Start Effect and Start
+    Chase — no chase-specific sign-flip logic needed once the fix moved into the index
+    remap. Independent of Reverse Direction (rule 10) and Random Order — a fixture's
+    own pixels don't get an independent "random order" (see Known gaps).
 
 ## Companion-module-API gotchas (see also memory: `companion-module-gotchas`)
 
@@ -193,7 +213,7 @@ see the Astera profiles for the shape).
 
 ## Test suite
 
-`npm test` — 112 tests, Node's built-in `node:test`, zero extra dependencies. All
+`npm test` — 116 tests, Node's built-in `node:test`, zero extra dependencies. All
 passing as of the last commit. Files: `artnet-sender.test.js`, `fixtures.test.js`,
 `patch-list.test.js` (config/action/preset generation), `effects.test.js` (engine +
 program math + BPM live-follow), `effects-actions.test.js` (action-layer wiring for
@@ -203,7 +223,9 @@ Pixel Phase Spread ripples them out of sync on request and
 is a no-op at 0 or on single-pixel profiles; Chase auto-derives its per-fixture pixel
 spread from Phase Spread/fixtureCount, including an end-to-end `EffectsEngine` test
 proving 2 chased Profile 80 fixtures form one continuous 8-position wave, not two
-independent ripples).
+independent ripples; Reverse Pixel Order end-to-end test comparing a reversed chase run
+against the forward run's per-fixture sequence reversed — see rule 11 in "Established
+rules" for why a weaker single-channel check would have missed a real bug here).
 
 Manual verification pattern used throughout: ad-hoc `node -e "..."` smoke scripts run
 via Bash (not saved to the repo) that wire `buildActionDefinitions`/
@@ -224,13 +246,12 @@ calling it done.
   after a chase starts won't join it.
 - A 3-channel Lupo Dayled variant (adds Strobe, per its own chart) was **not** built —
   only the 2-channel CCT mode was requested.
-- Profile 80's Pixel Phase Spread (Start Effect) has no Random Order equivalent for
-  shuffling pixel order (unlike the cross-fixture Chase) — Reverse Direction's sign
-  does now compose automatically wherever pixel spread is derived from a signed Phase
-  Spread (rule 10), but there's no way to independently randomize which pixel leads
-  within one fixture. Would need the engine to track a per-effect pixel shuffle state,
-  separate from the existing per-effect fixture shuffle; not built since it wasn't
-  asked for.
+- Profile 80's pixel spread has Reverse Pixel Order (rule 11) but no Random Order
+  equivalent for shuffling pixel order (unlike the cross-fixture Chase's actual random
+  reshuffling every lap) — there's no way to randomize which pixel leads within one
+  fixture, only a fixed forward/reversed choice. Would need the engine to track a
+  per-effect pixel shuffle state, separate from the existing per-effect fixture
+  shuffle; not built since it wasn't asked for.
 - A "Comet" effect (bright leading edge fading to black, distinct from Hard On/Off
   Blink's instant snap) was built, then explicitly reverted at the user's request — they
   wanted the existing effects' Chase behavior (rule 10) rather than a new effect type.
@@ -242,7 +263,7 @@ calling it done.
 
 ## Resuming work
 
-1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 112 passing.
+1. `cd /Users/nick/Documents/Companion/DEV/Artnet-Smart && npm test` — expect 116 passing.
 2. Read `companion/HELP.md` for current user-facing behavior.
 3. `git log --oneline` for commit-by-commit history if a decision needs more detail
    than this file gives.

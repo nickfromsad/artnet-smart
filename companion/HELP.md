@@ -163,6 +163,13 @@ profile at once:
   already-running chase.
   - **Reverse Direction** (checkbox, Chase only): sweeps the other way down the line —
     e.g. Tube 8→1 instead of 1→8 — without having to type a negative Phase Spread.
+  - **Reverse Pixel Order** (checkbox, multi-pixel fixtures only — see Pixel Phase
+    Spread below): independent of Reverse Direction above. Flips which way the sweep
+    travels *within* each fixture's own pixels, without changing which direction it
+    travels fixture-to-fixture. Useful when a fixture's pixel 1 is physically mounted
+    on the opposite side from where pixel 1 of the next fixture in line is — without
+    this, the sweep would zigzag backwards through each fixture even though it's
+    correctly moving forward down the overall line.
   - **Random Order** (checkbox, Chase only): shuffles which fixture leads the sweep —
     and keeps reshuffling automatically at the start of every lap for as long as it
     keeps running, not just once when you press Start. The order stays fixed for one
@@ -184,15 +191,21 @@ alongside the other effect fields. `0` keeps all of that fixture's pixels perfec
 sync; `1` spreads one full cycle evenly across its pixels, so e.g. Sine Breathing
 ripples down the tube's own 4 segments instead of pulsing them all together. Defaults
 to `1` (rippling), since that's almost always what you want out of a multi-pixel
-fixture — set it back to `0` for the classic "whole tube as one unit" look instead.
+fixture — set it back to `0` for the classic "whole tube as one unit" look instead. A
+**Reverse Pixel Order** checkbox sits next to it, flipping which pixel leads within
+that one fixture.
 
-**On a Chase, this happens automatically** — there's no separate field to set. Chase's
-existing **Phase Spread** now flattens "every targeted fixture's own pixels" into the
-sweep too, so chasing 2 Astera Helios Profile 80 fixtures with Phase Spread `1` gives
-you one continuous 8-step wave — fixture 1's pixel 1→2→3→4, then fixture 2's
-pixel 1→2→3→4 — instead of each fixture separately re-rippling through its own full
-cycle while also staggering against the next fixture. Reverse Direction reverses the
-whole flattened line the same way it already reverses a single-pixel Chase.
+**On a Chase, the numeric spread happens automatically** — there's no separate field to
+set. Chase's existing **Phase Spread** now flattens "every targeted fixture's own
+pixels" into the sweep too, so chasing 2 Astera Helios Profile 80 fixtures with Phase
+Spread `1` gives you one continuous 8-step wave — fixture 1's pixel 1→2→3→4, then
+fixture 2's pixel 1→2→3→4 — instead of each fixture separately re-rippling through its
+own full cycle while also staggering against the next fixture. Reverse Direction
+reverses the whole flattened line the same way it already reverses a single-pixel
+Chase. If your fixtures are mounted so pixel 1 alternates sides (or is consistently
+flipped relative to how the fixtures themselves are ordered down the line), use
+**Reverse Pixel Order** (see above) to flip just the within-fixture direction without
+touching Reverse Direction's fixture-to-fixture direction.
 
 **CCT gets reset automatically.** On these Astera fixtures, a non-zero CCT value
 overrides RGB in the fixture's own firmware, no matter what gets sent afterward — so if

@@ -244,6 +244,108 @@ test('Start Chase Reverse Direction: the negated sign carries through into pixel
   assert.equal(start.opts.params.pixelPhaseSpread, -0.5)
 })
 
+/**
+ * Reverse Pixel Order: independent of Reverse Direction (which flips fixture-to-
+ * fixture travel) and independent of Start Effect's own Pixel Phase Spread sign — it
+ * only flips which way the wave travels within each fixture's own pixels, for rigs
+ * where a fixture's pixel 1 is physically mounted on the opposite side from the next
+ * fixture's pixel 1.
+ */
+
+test('Reverse Pixel Order field exists on both Start Effect and Start Chase for multi-pixel profiles, defaulting to off', () => {
+  const { instance } = fakeInstanceWithProfile80(2)
+  const actions = buildActionDefinitions(instance, fixtureRegistry)
+
+  const effectField = actions['astera-helios-profile80_f1_start_effect'].options.find((o) => o.id === 'reversePixelOrder')
+  const chaseField = actions['astera-helios-profile80_start_chase'].options.find((o) => o.id === 'reversePixelOrder')
+  assert.ok(effectField)
+  assert.ok(chaseField)
+  assert.equal(effectField.default, false)
+  assert.equal(chaseField.default, false)
+})
+
+test('Start Effect: Reverse Pixel Order is passed through as its own flag, without touching Pixel Phase Spread\'s own sign/magnitude', async () => {
+  // Negating the spread's sign would mirror the sweep around pixel 1 (which always
+  // sits at offset 0) rather than actually reversing pixel order — see programs.js's
+  // pixelIndex() — so this must be a separate boolean, not baked into the number.
+  const { instance, effectCalls } = fakeInstanceWithProfile80(1)
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_f1_start_effect']
+
+  await action.callback({
+    options: { program: 'sineDimmer', periodSeconds: 4, dimmerMin: 0, dimmerMax: 100, pixelPhaseSpread: 1, reversePixelOrder: true },
+  })
+
+  const start = effectCalls.find((c) => c.type === 'start')
+  assert.equal(start.opts.params.pixelPhaseSpread, 1)
+  assert.equal(start.opts.params.reversePixelOrder, true)
+})
+
+test('Start Chase: Reverse Pixel Order is passed through as its own flag, leaving the fixture-level phaseSpread and the derived pixelPhaseSpread magnitude untouched', async () => {
+  const { instance, effectCalls } = fakeInstanceWithProfile80(4)
+  const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_start_chase']
+
+  await action.callback({
+    options: { program: 'rainbow', periodSeconds: 4, phaseSpread: 1, reversePixelOrder: true, dimmerPercent: 100 },
+  })
+
+  const start = effectCalls.find((c) => c.type === 'start')
+  assert.equal(start.opts.phaseSpread, 1, 'fixture-to-fixture direction must be unaffected')
+  assert.equal(start.opts.params.pixelPhaseSpread, 0.25, 'the derived magnitude is unaffected')
+  assert.equal(start.opts.params.reversePixelOrder, true)
+})
+
+test("end-to-end: Reverse Pixel Order reverses each fixture's own pixel sequence while leaving the fixture-to-fixture direction unchanged", async () => {
+  const runChase = async (reversePixelOrder) => {
+    const config = { fixtureCount: 2 }
+    for (let i = 1; i <= 2; i++) {
+      config[`fixture${i}Name`] = `Batten ${i}`
+      config[`fixture${i}Type`] = 'astera-helios-profile80'
+      config[`fixture${i}Universe`] = 0
+      config[`fixture${i}Start`] = (i - 1) * 25 + 1
+    }
+    const merged = {}
+    const instance = {
+      config,
+      log: () => {},
+      sender: {
+        setChannels: () => {},
+        mergeChannels: (u, s, v) => {
+          merged[u] = merged[u] || {}
+          v.forEach((val, idx) => {
+            if (val !== undefined) merged[u][s + idx] = val
+          })
+        },
+        flushAll: () => {},
+      },
+    }
+    instance.effects = new EffectsEngine(instance)
+    clearInterval(instance.effects.timer)
+
+    const action = buildActionDefinitions(instance, fixtureRegistry)['astera-helios-profile80_start_chase']
+    await action.callback({
+      options: { program: 'rainbow', periodSeconds: 8, phaseSpread: 1, reversePixelOrder, dimmerPercent: 100 },
+    })
+    const effect = instance.effects.running.get('astera-helios-profile80_chase_rainbow')
+    instance.effects.tick(effect.startedAt)
+    instance.effects.destroy()
+
+    const rgbAt = (redOffset) => [merged[0][redOffset], merged[0][redOffset + 1], merged[0][redOffset + 2]]
+    return {
+      fixture1: [1, 7, 13, 19].map(rgbAt),
+      fixture2: [26, 32, 38, 44].map(rgbAt),
+    }
+  }
+
+  const forward = await runChase(false)
+  const reversed = await runChase(true)
+
+  assert.deepEqual(reversed.fixture1, [...forward.fixture1].reverse(), "fixture1's own pixel order must be exactly reversed")
+  assert.deepEqual(reversed.fixture2, [...forward.fixture2].reverse(), "fixture2's own pixel order must be exactly reversed")
+  // the fixture-to-fixture direction itself is unaffected: fixture1's leading pixel
+  // still differs from fixture2's leading pixel, same as the un-reversed run
+  assert.notDeepEqual(forward.fixture1[0], forward.fixture2[0])
+})
+
 test('end-to-end: chasing 2 Profile 80 fixtures produces one continuous 8-position wave, not two independent ripples', async () => {
   const config = { fixtureCount: 2 }
   for (let i = 1; i <= 2; i++) {

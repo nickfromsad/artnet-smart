@@ -348,6 +348,21 @@ function effectStartFields(profile, { includePhaseSpread }) {
     })
   }
 
+  // Independent of Reverse Direction above (which flips which way the sweep travels
+  // fixture-to-fixture): flips which way it travels pixel-to-pixel within each
+  // fixture's own pixels, without changing the fixture-to-fixture direction. Needed
+  // when a fixture's pixel 1 is physically mounted on the opposite side from where
+  // pixel 1 of the next fixture in line is — without this, the sweep would zigzag
+  // backwards through each fixture even though it's moving the right way overall.
+  if (pixels > 1) {
+    fields.push({
+      id: 'reversePixelOrder',
+      type: 'checkbox',
+      label: "Reverse Pixel Order (within each fixture's own pixels only, independent of Reverse Direction)",
+      default: false,
+    })
+  }
+
   // A program only ever touches one channel group (RGB or Dimmer) per tick — without a
   // one-shot baseline for the group it doesn't own, the fixture could end up looking
   // off (Dimmer stuck at 0) or black (RGB never set) while the effect runs.
@@ -475,7 +490,10 @@ function effectOneShotOverrides(profile, options) {
 function effectParams(profile, options) {
   const program = EFFECT_PROGRAMS[options.program]
   const params = {}
-  if (pixelCount(profile) > 1) params.pixelPhaseSpread = Number(options.pixelPhaseSpread ?? 0)
+  if (pixelCount(profile) > 1) {
+    params.pixelPhaseSpread = Number(options.pixelPhaseSpread ?? 0)
+    params.reversePixelOrder = !!options.reversePixelOrder
+  }
   if (program?.touches === 'dimmer') {
     params.min = Number(options.dimmerMin)
     params.max = Number(options.dimmerMax)
@@ -575,7 +593,9 @@ function buildChaseStartAction(instance, profile) {
       // same Phase Spread by how many fixtures are in this chase gives each fixture's
       // own pixels exactly the right slice of the cycle to continue where the previous
       // fixture's last pixel left off, instead of each fixture separately re-rippling
-      // through its own full cycle. See HANDOFF.md for the derivation.
+      // through its own full cycle. See HANDOFF.md for the derivation. (Reverse Pixel
+      // Order, if set, is already carried in params from effectParams above — it flips
+      // which pixel leads within each fixture, independent of phaseSpread's own sign.)
       if (pixelCount(profile) > 1) params.pixelPhaseSpread = phaseSpread / fixtureIndices.length
 
       // shuffling itself (including reshuffling every lap when Random Order is on)

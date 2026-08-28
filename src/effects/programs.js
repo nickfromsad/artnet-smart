@@ -48,6 +48,18 @@ function pixelPhase(basePhase, i, n, spread) {
   return wrapPhase(basePhase + offsetFraction)
 }
 
+/**
+ * Which position index a physical pixel occupies in the sweep — pixel 0 normally
+ * leads (index 0), pixel n-1 trails. When reverse is set, that's flipped (pixel n-1
+ * leads instead), for fixtures whose pixel 1 is physically mounted on the opposite
+ * side from the next fixture's. Note this is a genuine index remap, not just negating
+ * `spread`: negating spread would keep pixel 0 anchored at offset 0 and mirror the
+ * others around it, which isn't the same as actually reversing the sweep order.
+ */
+function pixelIndex(i, n, reverse) {
+  return reverse ? n - 1 - i : i
+}
+
 export const EFFECT_PROGRAMS = {
   rainbow: {
     id: 'rainbow',
@@ -58,10 +70,12 @@ export const EFFECT_PROGRAMS = {
     supports: (profile) => hasRgb(profile),
     tick: (profile, phase, params = {}) => {
       const spread = params.pixelPhaseSpread ?? 0
+      const reverse = !!params.reversePixelOrder
       const groups = rgbGroups(profile)
       const overrides = []
       groups.forEach((group, i) => {
-        const { r, g, b } = hsvToRgb(pixelPhase(phase, i, groups.length, spread) * 360, 1, 1)
+        const idx = pixelIndex(i, groups.length, reverse)
+        const { r, g, b } = hsvToRgb(pixelPhase(phase, idx, groups.length, spread) * 360, 1, 1)
         overrides.push({ offset: group.red.offset, value: r })
         overrides.push({ offset: group.green.offset, value: g })
         overrides.push({ offset: group.blue.offset, value: b })
@@ -78,9 +92,11 @@ export const EFFECT_PROGRAMS = {
       const min = clampPercent(params.min ?? 0)
       const max = clampPercent(params.max ?? 100)
       const spread = params.pixelPhaseSpread ?? 0
+      const reverse = !!params.reversePixelOrder
       const channels = findChannels(profile, 'dimmer')
       return channels.map((channel, i) => {
-        const p = pixelPhase(phase, i, channels.length, spread)
+        const idx = pixelIndex(i, channels.length, reverse)
+        const p = pixelPhase(phase, idx, channels.length, spread)
         // starts at min (phase 0), peaks at max (phase 0.5), back to min (phase 1) — a smooth breath
         const percent = min + (max - min) * (0.5 - 0.5 * Math.cos(p * 2 * Math.PI))
         return { offset: channel.offset, value: Math.round((percent * 255) / 100) }
@@ -97,9 +113,11 @@ export const EFFECT_PROGRAMS = {
       const max = clampPercent(params.max ?? 100)
       const duty = clampPercent(params.dutyCycle ?? 50) / 100 // fraction of the cycle spent "on" (at max)
       const spread = params.pixelPhaseSpread ?? 0
+      const reverse = !!params.reversePixelOrder
       const channels = findChannels(profile, 'dimmer')
       return channels.map((channel, i) => {
-        const p = pixelPhase(phase, i, channels.length, spread)
+        const idx = pixelIndex(i, channels.length, reverse)
+        const p = pixelPhase(phase, idx, channels.length, spread)
         // no fade — snaps straight from max to min, unlike sineDimmer's smooth curve
         const percent = p < duty ? max : min
         return { offset: channel.offset, value: Math.round((percent * 255) / 100) }
